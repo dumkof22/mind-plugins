@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stremio Turkish Addons - Multi-Addon Server</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+            animation: fadeInDown 0.8s ease;
+        }
+
+        header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .server-info {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: fadeIn 1s ease;
+        }
+
+        .server-info h2 {
+            margin-bottom: 15px;
+            color: #ffd700;
+        }
+
+        .server-info .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .info-item {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .info-item strong {
+            display: block;
+            color: #ffd700;
+            margin-bottom: 5px;
+        }
+
+        .addons-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+
+        .addon-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            animation: fadeInUp 0.8s ease;
+            animation-fill-mode: both;
+        }
+
+        .addon-card:nth-child(1) {
+            animation-delay: 0.1s;
+        }
+
+        .addon-card:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .addon-card:nth-child(3) {
+            animation-delay: 0.3s;
+        }
+
+        .addon-card:nth-child(4) {
+            animation-delay: 0.4s;
+        }
+
+        .addon-card:nth-child(5) {
+            animation-delay: 0.5s;
+        }
+
+        .addon-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .addon-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .addon-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #ffd700;
+        }
+
+        .addon-card p {
+            margin-bottom: 20px;
+            opacity: 0.9;
+            line-height: 1.6;
+        }
+
+        .addon-links {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 20px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: bold;
+            text-align: center;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .copy-btn {
+            background: rgba(255, 215, 0, 0.2);
+            color: #ffd700;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            padding: 8px 15px;
+            font-size: 0.9rem;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 215, 0, 0.3);
+        }
+
+        .manifest-url {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            word-break: break-all;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .instructions {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: fadeIn 1.2s ease;
+        }
+
+        .instructions h2 {
+            margin-bottom: 20px;
+            color: #ffd700;
+        }
+
+        .instructions ol {
+            margin-left: 20px;
+            line-height: 2;
+        }
+
+        .instructions li {
+            margin-bottom: 10px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #4caf50;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            transform: translateY(50px);
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 50px;
+            padding: 20px;
+            opacity: 0.8;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2rem;
+            }
+
+            .addons-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🎬 Stremio Turkish Addons</h1>
+            <p>Tüm Türkçe içerikler tek sunucuda!</p>
+        </header>
+
+        <div class="server-info">
+            <h2>📡 Sunucu Bilgileri</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <strong>Sunucu Adresi:</strong>
+                    <span id="serverUrl">Yükleniyor...</span>
+                </div>
+                <div class="info-item">
+                    <strong>Port:</strong>
+                    <span id="serverPort">Yükleniyor...</span>
+                </div>
+                <div class="info-item">
+                    <strong>Durum:</strong>
+                    <span style="color: #4caf50;">🟢 Çalışıyor</span>
+                </div>
+                <div class="info-item">
+                    <strong>Toplam Addon:</strong>
+                    <span>5</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="addons-grid" id="addonsGrid">
+            <!-- Addons will be loaded dynamically -->
+        </div>
+
+        <div class="instructions">
+            <h2>📖 Stremio'ya Nasıl Eklenir?</h2>
+            <ol>
+                <li>Stremio uygulamasını açın</li>
+                <li><strong>Addons</strong> sekmesine gidin</li>
+                <li>Sağ üstteki <strong>arama çubuğuna</strong> yukarıdaki manifest URL'lerinden birini yapıştırın</li>
+                <li><strong>Install</strong> butonuna tıklayın</li>
+                <li>Addon başarıyla yüklendi! 🎉</li>
+            </ol>
+        </div>
+
+        <footer>
+            <p>Made with ❤️ for Turkish Stremio Users</p>
+            <p style="margin-top: 10px; font-size: 0.9rem; opacity: 0.7;">
+                Powered by Stremio Addon SDK | Multi-Addon Server v1.0
+            </p>
+        </footer>
+    </div>
+
+    <div class="toast" id="toast">
+        📋 Link kopyalandı!
+    </div>
+
+    <script>
+        const addonsData = [
+            {
+                icon: '🎥',
+                name: 'FullHDFilmizlesene',
+                path: '/fullhd',
+                description: 'Türkçe ve yabancı film izleme platformu. Yüksek kalitede filmler, çoklu server seçenekleri.',
+                features: ['HD/FHD Kalite', 'Çoklu Server', 'Türkçe Altyazı']
+            },
+            {
+                icon: '📺',
+                name: 'DiziPal',
+                path: '/dizipal',
+                description: 'Türkçe dizi ve film platformu. Netflix, Exxen, BluTV, Disney+ ve daha fazlası.',
+                features: ['Yerli/Yabancı Diziler', 'Platform Koleksiyonları', 'Altyazı Desteği']
+            },
+            {
+                icon: '⚽',
+                name: 'SelcukSports',
+                path: '/selcuk',
+                description: 'Canlı spor kanalları ve maç yayınları. beIN Sports, S Sport, TRT Spor ve daha fazlası.',
+                features: ['Canlı Maçlar', 'Spor Kanalları', '7/24 Yayın']
+            },
+            {
+                icon: '📡',
+                name: 'CanliTV',
+                path: '/canlitv',
+                description: 'Türkçe canlı TV kanalları. Ulusal, haber, spor, çocuk ve daha fazla kategoride kanallar.',
+                features: ['100+ Kanal', 'Kategorize İçerik', 'IPTV M3U']
+            },
+            {
+                icon: '🎬',
+                name: 'InatBox',
+                path: '/inat',
+                description: 'Premium platformlar tek çatı altında. Netflix, Disney+, Amazon Prime, HBO ve daha fazlası.',
+                features: ['Platform İçerikleri', 'Yerli Yapımlar', 'Canlı Kanallar']
+            }
+        ];
+
+        // Get current server URL
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        const port = window.location.port;
+        const baseUrl = port ? `${protocol}//${hostname}:${port}` : `${protocol}//${hostname}`;
+
+        // Update server info
+        document.getElementById('serverUrl').textContent = `${protocol}//${hostname}${port ? ':' + port : ''}`;
+        document.getElementById('serverPort').textContent = port || '80/443';
+
+        // Generate addon cards
+        const addonsGrid = document.getElementById('addonsGrid');
+
+        addonsData.forEach(addon => {
+            const manifestUrl = `${baseUrl}${addon.path}/manifest.json`;
+            const stremioUrl = `stremio://${hostname}${port ? ':' + port : ''}${addon.path}/manifest.json`;
+
+            const card = document.createElement('div');
+            card.className = 'addon-card';
+            card.innerHTML = `
+                <div class="addon-icon">${addon.icon}</div>
+                <h3>${addon.name}</h3>
+                <p>${addon.description}</p>
+                <div style="margin-bottom: 15px;">
+                    ${addon.features.map(f => `<span style="display: inline-block; background: rgba(255,215,0,0.2); color: #ffd700; padding: 4px 10px; border-radius: 15px; font-size: 0.85rem; margin: 3px;">${f}</span>`).join('')}
+                </div>
+                <div class="manifest-url">${manifestUrl}</div>
+                <div class="addon-links">
+                    <button class="btn copy-btn" onclick="copyToClipboard('${manifestUrl}')">
+                        📋 Manifest URL'yi Kopyala
+                    </button>
+                    <a href="${manifestUrl}" target="_blank" class="btn btn-secondary">
+                        🔗 Manifest'i Görüntüle
+                    </a>
+                    <a href="${stremioUrl}" class="btn btn-primary">
+                        ⚡ Stremio'da Aç
+                    </a>
+                </div>
+            `;
+            addonsGrid.appendChild(card);
+        });
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast();
+            }).catch(err => {
+                console.error('Kopyalama hatası:', err);
+                // Fallback method
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                showToast();
+            });
+        }
+
+        function showToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+
+</html>
