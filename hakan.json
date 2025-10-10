@@ -1,0 +1,100 @@
+{
+    "name": "Dizipal Web Scraper",
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "start-node",
+            "name": "When clicking 'Test workflow'",
+            "type": "n8n-nodes-base.manualTrigger",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "url": "https://dizipal1208.com",
+                "options": {
+                    "timeout": 30000,
+                    "waitUntil": "networkidle2"
+                }
+            },
+            "id": "puppeteer-node",
+            "name": "Puppeteer",
+            "type": "n8n-nodes-base.puppeteer",
+            "typeVersion": 1,
+            "position": [
+                450,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "extractHtmlContent",
+                "selector": "body",
+                "options": {}
+            },
+            "id": "html-extract",
+            "name": "HTML Extract",
+            "type": "n8n-nodes-base.html",
+            "typeVersion": 1,
+            "position": [
+                650,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Sayfa içeriğini işle\nconst html = $input.first().json.html;\n\n// Başlıkları çek (örnek seçiciler - siteye göre ayarlanmalı)\nconst titleRegex = /<h[1-6][^>]*>(.*?)<\\/h[1-6]>/gi;\nconst titles = [];\nlet match;\n\nwhile ((match = titleRegex.exec(html)) !== null) {\n  titles.push(match[1].replace(/<[^>]*>/g, '').trim());\n}\n\n// Linkleri çek\nconst linkRegex = /<a[^>]*href=[\"']([^\"']*)[\"'][^>]*>(.*?)<\\/a>/gi;\nconst links = [];\n\nwhile ((match = linkRegex.exec(html)) !== null) {\n  links.push({\n    url: match[1],\n    text: match[2].replace(/<[^>]*>/g, '').trim()\n  });\n}\n\nreturn [\n  {\n    json: {\n      titles: titles.slice(0, 10), // İlk 10 başlık\n      links: links.slice(0, 20),    // İlk 20 link\n      timestamp: new Date().toISOString(),\n      source: 'dizipal1208.com'\n    }\n  }\n];"
+            },
+            "id": "code-node",
+            "name": "Process Data",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                850,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "When clicking 'Test workflow'": {
+            "main": [
+                [
+                    {
+                        "node": "Puppeteer",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Puppeteer": {
+            "main": [
+                [
+                    {
+                        "node": "HTML Extract",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "HTML Extract": {
+            "main": [
+                [
+                    {
+                        "node": "Process Data",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    }
+}

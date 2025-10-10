@@ -15,6 +15,9 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+// Serve static files from public directory
+app.use(express.static('public'));
+
 // Fetch with axios (for browser-required requests)
 async function fetchWithAxios(fetchOptions, requestId) {
     try {
@@ -122,6 +125,11 @@ setInterval(() => {
         }
     }
 }, 30000);
+
+// Root endpoint - redirect to index.html
+app.get('/', (req, res) => {
+    res.sendFile('index.html', { root: 'public' });
+});
 
 // Health check
 app.get('/health', (req, res) => {

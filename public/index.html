@@ -321,7 +321,7 @@
                 </div>
                 <div class="info-item">
                     <strong>Toplam Addon:</strong>
-                    <span>5</span>
+                    <span id="addonCount">4</span>
                 </div>
             </div>
         </div>
@@ -358,37 +358,30 @@
             {
                 icon: '🎥',
                 name: 'FullHDFilmizlesene',
-                path: '/fullhd',
+                addonId: 'fullhdfilmizlesene',
                 description: 'Türkçe ve yabancı film izleme platformu. Yüksek kalitede filmler, çoklu server seçenekleri.',
                 features: ['HD/FHD Kalite', 'Çoklu Server', 'Türkçe Altyazı']
             },
             {
+                icon: '🎬',
+                name: 'InatBox',
+                addonId: 'inatbox',
+                description: 'Premium platformlar tek çatı altında. Netflix, Disney+, Amazon Prime, HBO, TV kanalları ve daha fazlası.',
+                features: ['Platform İçerikleri', 'Yerli Yapımlar', 'Canlı Kanallar']
+            },
+            {
                 icon: '📺',
                 name: 'DiziPal',
-                path: '/dizipal',
+                addonId: 'dizipal',
                 description: 'Türkçe dizi ve film platformu. Netflix, Exxen, BluTV, Disney+ ve daha fazlası.',
                 features: ['Yerli/Yabancı Diziler', 'Platform Koleksiyonları', 'Altyazı Desteği']
             },
             {
                 icon: '⚽',
-                name: 'SelcukSports',
-                path: '/selcuk',
+                name: 'SelcukSports HD',
+                addonId: 'selcuksports',
                 description: 'Canlı spor kanalları ve maç yayınları. beIN Sports, S Sport, TRT Spor ve daha fazlası.',
                 features: ['Canlı Maçlar', 'Spor Kanalları', '7/24 Yayın']
-            },
-            {
-                icon: '📡',
-                name: 'CanliTV',
-                path: '/canlitv',
-                description: 'Türkçe canlı TV kanalları. Ulusal, haber, spor, çocuk ve daha fazla kategoride kanallar.',
-                features: ['100+ Kanal', 'Kategorize İçerik', 'IPTV M3U']
-            },
-            {
-                icon: '🎬',
-                name: 'InatBox',
-                path: '/inat',
-                description: 'Premium platformlar tek çatı altında. Netflix, Disney+, Amazon Prime, HBO ve daha fazlası.',
-                features: ['Platform İçerikleri', 'Yerli Yapımlar', 'Canlı Kanallar']
             }
         ];
 
@@ -406,8 +399,8 @@
         const addonsGrid = document.getElementById('addonsGrid');
 
         addonsData.forEach(addon => {
-            const manifestUrl = `${baseUrl}${addon.path}/manifest.json`;
-            const stremioUrl = `stremio://${hostname}${port ? ':' + port : ''}${addon.path}/manifest.json`;
+            const manifestUrl = `${baseUrl}/api/addon/${addon.addonId}/manifest.json`;
+            const stremioUrl = `stremio://${hostname}${port ? ':' + port : ''}/api/addon/${addon.addonId}/manifest.json`;
 
             const card = document.createElement('div');
             card.className = 'addon-card';
