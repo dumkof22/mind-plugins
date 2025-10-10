@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: stremio-turkish-addons
+    env: node
+    region: frankfurt  # or oregon, singapore
+    plan: free  # free, starter, standard
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 7000
+      - key: DIZIPAL_START_NUMBER
+        value: 1206
+      - key: DIZIPAL_MAX_RETRIES
+        value: 50
+      - key: SELCUK_MAX_RETRIES
+        value: 10
+
