@@ -311,54 +311,56 @@ async function processFetchResult(fetchResult) {
 
     if (purpose === 'stream') {
         const streams = [];
-        const instructions = []; // Embed sayfaları için ek fetch'ler
+        const instructions = [];
 
-        // İframe linklerini kontrol et ve gerekirse extract için instruction ekle
+        // İframe linklerini extraction için instruction olarak ekle
         $('iframe').each((i, elem) => {
             const src = $(elem).attr('src') || $(elem).attr('data-src');
             if (src && src.startsWith('http')) {
                 let streamName = 'FullHDFilmizlesene';
-                let needsExtraction = false;
+                let extractPurpose = null;
 
                 if (src.includes('rapidvid.net')) {
                     streamName = 'RapidVid';
-                    needsExtraction = true;
+                    extractPurpose = 'extract_rapidvid';
                 } else if (src.includes('vidmoxy.com')) {
                     streamName = 'VidMoxy';
-                    needsExtraction = true;
+                    extractPurpose = 'extract_vidmoxy';
                 } else if (src.includes('trstx.org')) {
                     streamName = 'TRsTX';
-                    needsExtraction = true;
+                    extractPurpose = 'extract_trstx';
                 } else if (src.includes('sobreatsesuyp.com')) {
                     streamName = 'Sobreatsesuyp';
-                    needsExtraction = true;
+                    extractPurpose = 'extract_sobreatsesuyp';
                 } else if (src.includes('turbo.imgz.me')) {
                     streamName = 'TurboImgz';
-                    needsExtraction = true;
+                    extractPurpose = 'extract_turboimgz';
                 } else if (src.includes('turkeyplayer.com')) {
                     streamName = 'TurkeyPlayer';
-                    needsExtraction = true;
+                    extractPurpose = 'extract_turkeyplayer';
                 }
 
-                if (needsExtraction) {
-                    // Extraction için instruction ekle
+                // Eğer extraction gerekiyorsa instruction döndür
+                if (extractPurpose) {
                     const randomId = Math.random().toString(36).substring(2, 10);
-                    const requestId = `fhd-extract-${streamName}-${Date.now()}-${randomId}`;
+                    const requestId = `fhd-extract-${Date.now()}-${randomId}`;
+
                     instructions.push({
                         requestId,
-                        purpose: `extract_${streamName.toLowerCase()}`,
+                        purpose: extractPurpose,
                         url: src,
                         method: 'GET',
                         headers: {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                             'Referer': url
-                        }
+                        },
+                        metadata: { streamName }
                     });
                 } else {
-                    // Direkt iframe olarak ekle
+                    // Bilinmeyen iframe, direkt stream olarak ekle
                     streams.push({
                         name: streamName,
-                        title: `${streamName} Server (iframe)`,
+                        title: `${streamName} Server`,
                         url: src,
                         behaviorHints: {
                             notWebReady: true
@@ -379,7 +381,7 @@ async function processFetchResult(fetchResult) {
                 const scxData = JSON.parse(scxMatch[1]);
                 const keys = ['atom', 'advid', 'advidprox', 'proton', 'fast', 'fastly', 'tr', 'en'];
 
-                // SCX linklerini işle ve extract edilecekleri belirle
+                // SCX linklerini işle - decode et ve kontrol et
                 for (const key of keys) {
                     if (scxData[key]?.sx?.t) {
                         const t = scxData[key].sx.t;
@@ -390,37 +392,45 @@ async function processFetchResult(fetchResult) {
                                 const decoded = decodeLink(link);
 
                                 if (decoded && decoded.startsWith('http')) {
-                                    // URL'yi kontrol et ve gerekirse extraction için instruction ekle
-                                    let streamName = `${key.toUpperCase()} - ${idx + 1}`;
+                                    // Embed sayfası mı yoksa direkt video URL'i mi kontrol et
                                     let needsExtraction = false;
-                                    let extractType = '';
+                                    let extractPurpose = null;
+                                    let streamName = `${key.toUpperCase()} - ${idx + 1}`;
 
                                     if (decoded.includes('rapidvid.net')) {
                                         needsExtraction = true;
-                                        extractType = 'rapidvid';
+                                        extractPurpose = 'extract_rapidvid';
+                                        streamName = `RapidVid (${key.toUpperCase()})`;
                                     } else if (decoded.includes('vidmoxy.com')) {
                                         needsExtraction = true;
-                                        extractType = 'vidmoxy';
+                                        extractPurpose = 'extract_vidmoxy';
+                                        streamName = `VidMoxy (${key.toUpperCase()})`;
                                     } else if (decoded.includes('trstx.org')) {
                                         needsExtraction = true;
-                                        extractType = 'trstx';
+                                        extractPurpose = 'extract_trstx';
+                                        streamName = `TRsTX (${key.toUpperCase()})`;
                                     } else if (decoded.includes('sobreatsesuyp.com')) {
                                         needsExtraction = true;
-                                        extractType = 'sobreatsesuyp';
+                                        extractPurpose = 'extract_sobreatsesuyp';
+                                        streamName = `Sobreatsesuyp (${key.toUpperCase()})`;
                                     } else if (decoded.includes('turbo.imgz.me')) {
                                         needsExtraction = true;
-                                        extractType = 'turboimgz';
+                                        extractPurpose = 'extract_turboimgz';
+                                        streamName = `TurboImgz (${key.toUpperCase()})`;
                                     } else if (decoded.includes('turkeyplayer.com')) {
                                         needsExtraction = true;
-                                        extractType = 'turkeyplayer';
+                                        extractPurpose = 'extract_turkeyplayer';
+                                        streamName = `TurkeyPlayer (${key.toUpperCase()})`;
                                     }
 
                                     if (needsExtraction) {
+                                        // Extraction gerekiyor - instruction olarak ekle
                                         const randomId = Math.random().toString(36).substring(2, 10);
-                                        const requestId = `fhd-extract-${extractType}-${Date.now()}-${randomId}`;
+                                        const requestId = `fhd-scx-extract-${Date.now()}-${randomId}`;
+
                                         instructions.push({
                                             requestId,
-                                            purpose: `extract_${extractType}`,
+                                            purpose: extractPurpose,
                                             url: decoded,
                                             method: 'GET',
                                             headers: {
@@ -429,13 +439,17 @@ async function processFetchResult(fetchResult) {
                                             },
                                             metadata: { streamName }
                                         });
+                                        console.log(`🔄 SCX needs extraction: ${streamName} - ${decoded.substring(0, 60)}...`);
                                     } else {
+                                        // Direkt m3u8 linki - stream olarak ekle
                                         streams.push({
                                             name: streamName,
                                             title: `${key.toUpperCase()} Server`,
                                             url: decoded,
-                                            behaviorHints: { notWebReady: true }
+                                            type: 'm3u8',
+                                            behaviorHints: { notWebReady: false }
                                         });
+                                        console.log(`✅ SCX direct stream: ${streamName} - ${decoded.substring(0, 60)}...`);
                                     }
                                 }
                             }
@@ -445,36 +459,45 @@ async function processFetchResult(fetchResult) {
                                     const decoded = decodeLink(link);
 
                                     if (decoded && decoded.startsWith('http')) {
-                                        let streamName = `${key.toUpperCase()}-${subKey}`;
+                                        // Embed sayfası mı yoksa direkt video URL'i mi kontrol et
                                         let needsExtraction = false;
-                                        let extractType = '';
+                                        let extractPurpose = null;
+                                        let streamName = `${key.toUpperCase()}-${subKey}`;
 
                                         if (decoded.includes('rapidvid.net')) {
                                             needsExtraction = true;
-                                            extractType = 'rapidvid';
+                                            extractPurpose = 'extract_rapidvid';
+                                            streamName = `RapidVid (${key.toUpperCase()})`;
                                         } else if (decoded.includes('vidmoxy.com')) {
                                             needsExtraction = true;
-                                            extractType = 'vidmoxy';
+                                            extractPurpose = 'extract_vidmoxy';
+                                            streamName = `VidMoxy (${key.toUpperCase()})`;
                                         } else if (decoded.includes('trstx.org')) {
                                             needsExtraction = true;
-                                            extractType = 'trstx';
+                                            extractPurpose = 'extract_trstx';
+                                            streamName = `TRsTX (${key.toUpperCase()})`;
                                         } else if (decoded.includes('sobreatsesuyp.com')) {
                                             needsExtraction = true;
-                                            extractType = 'sobreatsesuyp';
+                                            extractPurpose = 'extract_sobreatsesuyp';
+                                            streamName = `Sobreatsesuyp (${key.toUpperCase()})`;
                                         } else if (decoded.includes('turbo.imgz.me')) {
                                             needsExtraction = true;
-                                            extractType = 'turboimgz';
+                                            extractPurpose = 'extract_turboimgz';
+                                            streamName = `TurboImgz (${key.toUpperCase()})`;
                                         } else if (decoded.includes('turkeyplayer.com')) {
                                             needsExtraction = true;
-                                            extractType = 'turkeyplayer';
+                                            extractPurpose = 'extract_turkeyplayer';
+                                            streamName = `TurkeyPlayer (${key.toUpperCase()})`;
                                         }
 
                                         if (needsExtraction) {
+                                            // Extraction gerekiyor - instruction olarak ekle
                                             const randomId = Math.random().toString(36).substring(2, 10);
-                                            const requestId = `fhd-extract-${extractType}-${Date.now()}-${randomId}`;
+                                            const requestId = `fhd-scx-extract-${Date.now()}-${randomId}`;
+
                                             instructions.push({
                                                 requestId,
-                                                purpose: `extract_${extractType}`,
+                                                purpose: extractPurpose,
                                                 url: decoded,
                                                 method: 'GET',
                                                 headers: {
@@ -483,13 +506,17 @@ async function processFetchResult(fetchResult) {
                                                 },
                                                 metadata: { streamName }
                                             });
+                                            console.log(`🔄 SCX needs extraction: ${streamName} - ${decoded.substring(0, 60)}...`);
                                         } else {
+                                            // Direkt m3u8 linki - stream olarak ekle
                                             streams.push({
                                                 name: streamName,
                                                 title: `${key.toUpperCase()} Server`,
                                                 url: decoded,
-                                                behaviorHints: { notWebReady: true }
+                                                type: 'm3u8',
+                                                behaviorHints: { notWebReady: false }
                                             });
+                                            console.log(`✅ SCX direct stream: ${streamName} - ${decoded.substring(0, 60)}...`);
                                         }
                                     }
                                 }
@@ -502,11 +529,22 @@ async function processFetchResult(fetchResult) {
 
         console.log(`✅ Found ${streams.length} stream(s) and ${instructions.length} extraction(s)`);
 
-        // Eğer extraction instruction'ları varsa, bunları da döndür
-        if (instructions.length > 0) {
-            return { streams, instructions };
+        // Stream'leri detaylı logla
+        if (streams.length > 0) {
+            console.log('📊 Stream details:');
+            streams.forEach((s, idx) => {
+                console.log(`   ${idx + 1}. ${s.name}`);
+                console.log(`      - url: ${s.url?.substring(0, 60)}...`);
+                console.log(`      - behaviorHints: ${JSON.stringify(s.behaviorHints)}`);
+            });
         }
 
+        // Eğer extraction instruction'ları varsa, önce onları döndür
+        if (instructions.length > 0) {
+            return { instructions };
+        }
+
+        // Yoksa direkt stream'leri döndür
         return { streams };
     }
 
@@ -516,8 +554,31 @@ async function processFetchResult(fetchResult) {
     if (purpose === 'extract_rapidvid') {
         const streams = [];
         const streamName = fetchResult.metadata?.streamName || 'RapidVid';
+        const subtitles = [];
 
         try {
+            // Extract subtitles (jwSetup.tracks)
+            const trackMatch = body.match(/jwSetup\.tracks\s*=\s*(\[.*?\]);/s);
+            if (trackMatch) {
+                try {
+                    const tracks = JSON.parse(trackMatch[1]);
+                    tracks.forEach(track => {
+                        if (track.file && track.label) {
+                            const lang = track.label
+                                .replace(/\\u0131/g, 'ı')
+                                .replace(/\\u0130/g, 'İ')
+                                .replace(/\\u00fc/g, 'ü')
+                                .replace(/\\u00e7/g, 'ç');
+                            const subUrl = track.file.replace(/\\/g, '');
+                            subtitles.push({ lang, url: subUrl });
+                        }
+                    });
+                } catch (e) {
+                    console.log('⚠️  RapidVid subtitle parse error:', e.message);
+                }
+            }
+
+            // Extract video URL
             const scriptMatch = body.match(/jwSetup\.sources\s*=\s*\[.*?av\('([^']+)'\)/s);
             if (scriptMatch) {
                 const encodedValue = scriptMatch[1];
@@ -528,10 +589,14 @@ async function processFetchResult(fetchResult) {
                     title: `${streamName}`,
                     url: m3u8Url,
                     type: 'm3u8',
+                    subtitles: subtitles.length > 0 ? subtitles : undefined,
                     behaviorHints: {
                         notWebReady: false
                     }
                 });
+                console.log(`✅ RapidVid: URL extracted, ${subtitles.length} subtitle(s)`);
+            } else {
+                console.log('⚠️  RapidVid: No av() match found in body');
             }
         } catch (e) {
             console.log('⚠️  RapidVid extraction error:', e.message);
@@ -545,8 +610,22 @@ async function processFetchResult(fetchResult) {
     if (purpose === 'extract_vidmoxy') {
         const streams = [];
         const streamName = fetchResult.metadata?.streamName || 'VidMoxy';
+        const subtitles = [];
 
         try {
+            // Extract subtitles
+            const captionRegex = /captions","file":"([^"]+)","label":"([^"]+)"/g;
+            let captionMatch;
+            while ((captionMatch = captionRegex.exec(body)) !== null) {
+                const subUrl = captionMatch[1].replace(/\\/g, '');
+                const lang = captionMatch[2]
+                    .replace(/\\u0131/g, 'ı')
+                    .replace(/\\u0130/g, 'İ')
+                    .replace(/\\u00fc/g, 'ü')
+                    .replace(/\\u00e7/g, 'ç');
+                subtitles.push({ lang, url: subUrl });
+            }
+
             // Method 1: Hex encoded file (\\x formatında)
             let fileMatch = body.match(/file:\s*"([^"]+)"/);
             if (fileMatch && fileMatch[1].includes('\\x')) {
@@ -561,8 +640,10 @@ async function processFetchResult(fetchResult) {
                         title: `${streamName}`,
                         url: decoded,
                         type: 'm3u8',
+                        subtitles: subtitles.length > 0 ? subtitles : undefined,
                         behaviorHints: { notWebReady: false }
                     });
+                    console.log(`✅ VidMoxy: Method 1 success, ${subtitles.length} subtitle(s)`);
                 }
             } else {
                 // Method 2: Packed JS
@@ -589,10 +670,16 @@ async function processFetchResult(fetchResult) {
                                 title: `${streamName}`,
                                 url: decoded,
                                 type: 'm3u8',
+                                subtitles: subtitles.length > 0 ? subtitles : undefined,
                                 behaviorHints: { notWebReady: false }
                             });
+                            console.log(`✅ VidMoxy: Method 2 success, ${subtitles.length} subtitle(s)`);
                         }
+                    } else {
+                        console.log('⚠️  VidMoxy: No file match in unpacked JS');
                     }
+                } else {
+                    console.log('⚠️  VidMoxy: No packed JS found');
                 }
             }
         } catch (e) {
@@ -611,13 +698,17 @@ async function processFetchResult(fetchResult) {
         try {
             const fileMatch = body.match(/file:\s*"([^"]+)"/);
             if (fileMatch) {
+                const videoUrl = fileMatch[1];
                 streams.push({
                     name: streamName,
                     title: `${streamName}`,
-                    url: fileMatch[1],
+                    url: videoUrl,
                     type: 'm3u8',
                     behaviorHints: { notWebReady: false }
                 });
+                console.log(`✅ TurboImgz: URL extracted - ${videoUrl.substring(0, 60)}...`);
+            } else {
+                console.log('⚠️  TurboImgz: No file match found');
             }
         } catch (e) {
             console.log('⚠️  TurboImgz extraction error:', e.message);
@@ -645,6 +736,9 @@ async function processFetchResult(fetchResult) {
                     type: 'm3u8',
                     behaviorHints: { notWebReady: false }
                 });
+                console.log(`✅ TurkeyPlayer: URL built - id=${videoData.id}, md5=${videoData.md5.substring(0, 8)}...`);
+            } else {
+                console.log('⚠️  TurkeyPlayer: No video JSON found');
             }
         } catch (e) {
             console.log('⚠️  TurkeyPlayer extraction error:', e.message);
@@ -666,6 +760,9 @@ async function processFetchResult(fetchResult) {
                 const file = fileMatch[1].replace(/\\/g, '');
                 const postLink = `${mainUrl}/${file}`;
 
+                console.log(`✅ ${streamName}: Found file path, creating POST instruction`);
+                console.log(`   POST URL: ${postLink}`);
+
                 const randomId = Math.random().toString(36).substring(2, 10);
                 const requestId = `fhd-post-${purpose}-${Date.now()}-${randomId}`;
 
@@ -680,11 +777,14 @@ async function processFetchResult(fetchResult) {
                     },
                     metadata: { streamName, mainUrl }
                 });
+            } else {
+                console.log(`⚠️  ${streamName}: No file path found in response`);
             }
         } catch (e) {
             console.log(`⚠️  ${streamName} extraction error:`, e.message);
         }
 
+        console.log(`✅ ${streamName}: Returning ${instructions.length} instruction(s)`);
         return { instructions };
     }
 
@@ -697,10 +797,13 @@ async function processFetchResult(fetchResult) {
         try {
             const postJson = JSON.parse(body);
             if (Array.isArray(postJson) && postJson.length > 1) {
+                console.log(`✅ ${streamName}: POST returned ${postJson.length - 1} quality options`);
+
                 for (let i = 1; i < postJson.length; i++) {
                     const item = postJson[i];
                     if (item.file && item.title) {
                         const fileUrl = `${mainUrl}/playlist/${item.file.substring(1)}.txt`;
+                        console.log(`   Quality: ${item.title} - ${fileUrl}`);
 
                         const randomId = Math.random().toString(36).substring(2, 10);
                         const requestId = `fhd-playlist-${purpose}-${Date.now()}-${randomId}`;
@@ -718,11 +821,14 @@ async function processFetchResult(fetchResult) {
                         });
                     }
                 }
+            } else {
+                console.log(`⚠️  ${streamName}: Invalid POST response format`);
             }
         } catch (e) {
             console.log(`⚠️  ${streamName} POST parsing error:`, e.message);
         }
 
+        console.log(`✅ ${streamName}: Returning ${instructions.length} playlist instruction(s)`);
         return { instructions };
     }
 
@@ -741,6 +847,9 @@ async function processFetchResult(fetchResult) {
                     type: 'm3u8',
                     behaviorHints: { notWebReady: false }
                 });
+                console.log(`✅ ${streamName}: Final M3U8 URL - ${m3u8Url.substring(0, 60)}...`);
+            } else {
+                console.log(`⚠️  ${streamName}: Invalid M3U8 URL - ${m3u8Url.substring(0, 100)}`);
             }
         } catch (e) {
             console.log(`⚠️  ${streamName} playlist error:`, e.message);

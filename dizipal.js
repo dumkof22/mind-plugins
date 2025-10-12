@@ -556,14 +556,20 @@ async function processFetchResult(fetchResult) {
         }
 
         if (iframeSources.length > 0) {
-            const iframeSrc = iframeSources[0];
-            const iframeUrl = iframeSrc.startsWith('http') ? iframeSrc : `https:${iframeSrc}`;
-            console.log(`✅ Iframe bulundu, içeriğini fetch ediyorum: ${iframeUrl.substring(0, 80)}...`);
+            // Iframe'leri extraction için instruction olarak döndür
+            console.log(`✅ ${iframeSources.length} iframe bulundu, extraction instruction olarak ekleniyor...`);
 
-            const randomId = Math.random().toString(36).substring(2, 10);
-            const requestId = `dizipal-iframe-${Date.now()}-${randomId}`;
-            return {
-                instructions: [{
+            const instructions = [];
+            for (let i = 0; i < Math.min(iframeSources.length, 5); i++) { // Max 5 iframe
+                const iframeSrc = iframeSources[i];
+                const iframeUrl = iframeSrc.startsWith('http') ? iframeSrc : `https:${iframeSrc}`;
+
+                console.log(`   Iframe ${i + 1}: ${iframeUrl.substring(0, 80)}...`);
+
+                const randomId = Math.random().toString(36).substring(2, 10);
+                const requestId = `dizipal-iframe-extract-${Date.now()}-${randomId}`;
+
+                instructions.push({
                     requestId,
                     purpose: 'iframe-stream',
                     url: iframeUrl,
@@ -572,9 +578,13 @@ async function processFetchResult(fetchResult) {
                         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                         'Referer': url
-                    }
-                }]
-            };
+                    },
+                    metadata: { streamName: `DiziPal Server ${i + 1}` }
+                });
+            }
+
+            console.log(`📊 Toplam ${instructions.length} iframe extraction instruction eklendi`);
+            return { instructions };
         }
 
         // ========== ADIM 2: SERIES-PLAYER ENDPOINT (FALLBACK) ==========
@@ -630,7 +640,10 @@ async function processFetchResult(fetchResult) {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                         'Referer': url
                     },
-                    metadata: { originalUrl: url }
+                    metadata: {
+                        originalUrl: url,
+                        streamName: 'DiziPal Series Player'
+                    }
                 }]
             };
         }
@@ -723,12 +736,12 @@ async function processFetchResult(fetchResult) {
             console.log(`✅ M3U8 stream bulundu: ${finalUrl.substring(0, 80)}...`);
 
             streams.push({
-                name: 'DiziPal',
-                title: 'DiziPal Server',
+                name: 'DiziPal Direct',
+                title: 'DiziPal Direct Server',
                 url: finalUrl,
+                type: 'm3u8',
                 behaviorHints: {
-                    notWebReady: true,
-                    bingeGroup: 'dizipal-stream'
+                    notWebReady: false // Direkt m3u8, oynatılabilir
                 }
             });
 
@@ -791,6 +804,7 @@ async function processFetchResult(fetchResult) {
         console.log('\n🔍 [IFRAME STREAM DETECTION] Başlıyor...');
         console.log('📄 Iframe body preview:', body.substring(0, 300));
         const streams = [];
+        const streamName = metadata?.streamName || 'DiziPal';
 
         // ÖNCE: En kesin pattern'ler (file:, source:, src:)
         let m3uMatch = body.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
@@ -868,12 +882,12 @@ async function processFetchResult(fetchResult) {
             console.log(`✅ Iframe M3U8 bulundu: ${m3uLink.substring(0, 100)}...`);
 
             streams.push({
-                name: 'DiziPal',
-                title: 'DiziPal Server',
+                name: streamName,
+                title: streamName,
                 url: m3uLink,
+                type: 'm3u8',
                 behaviorHints: {
-                    notWebReady: true,
-                    bingeGroup: 'dizipal-stream'
+                    notWebReady: false // Extract edilmiş, direkt oynatılabilir
                 }
             });
 
@@ -934,6 +948,7 @@ async function processFetchResult(fetchResult) {
         console.log('\n🔍 [SERIES-PLAYER STREAM DETECTION] Başlıyor...');
         console.log('📄 Series-player body preview:', body.substring(0, 300));
         const streams = [];
+        const streamName = metadata?.streamName || 'DiziPal Series Player';
 
         // ÖNCE: En kesin pattern'ler
         let m3uMatch = body.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
@@ -980,12 +995,12 @@ async function processFetchResult(fetchResult) {
             console.log(`✅ Series-player M3U8 bulundu: ${m3uLink.substring(0, 100)}...`);
 
             streams.push({
-                name: 'DiziPal',
-                title: 'DiziPal Server',
+                name: streamName,
+                title: streamName,
                 url: m3uLink,
+                type: 'm3u8',
                 behaviorHints: {
-                    notWebReady: true,
-                    bingeGroup: 'dizipal-stream'
+                    notWebReady: false // Extract edilmiş, direkt oynatılabilir
                 }
             });
 
