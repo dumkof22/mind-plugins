@@ -109,6 +109,66 @@ function vkSourceFix(url) {
     return url;
 }
 
+// Build stream object with headers and metadata
+function buildStreamObject(chContent) {
+    const streamUrl = chContent.chUrl;
+    const streamName = chContent.chName;
+
+    // Parse headers
+    const headers = {};
+    try {
+        if (chContent.chHeaders !== 'null') {
+            const headersArray = JSON.parse(chContent.chHeaders);
+            if (Array.isArray(headersArray) && headersArray.length > 0) {
+                const headersObj = headersArray[0];
+                Object.assign(headers, headersObj);
+            }
+        }
+
+        // Parse chReg for cookie
+        if (chContent.chReg !== 'null') {
+            const regArray = JSON.parse(chContent.chReg);
+            if (Array.isArray(regArray) && regArray.length > 0) {
+                const regObj = regArray[0];
+                if (regObj.playSH2) {
+                    headers['Cookie'] = regObj.playSH2;
+                }
+            }
+        }
+    } catch (error) {
+        console.warn('⚠️ Failed to parse headers/reg:', error.message);
+    }
+
+    // Determine stream type
+    let behaviorHints = {};
+    if (streamUrl.includes('.m3u8')) {
+        behaviorHints.notWebReady = true;
+        behaviorHints.bingeGroup = 'inatbox-m3u8';
+    } else if (streamUrl.includes('.mpd')) {
+        behaviorHints.notWebReady = true;
+        behaviorHints.bingeGroup = 'inatbox-dash';
+    }
+
+    // Build stream object
+    const stream = {
+        name: streamName,
+        title: streamName,
+        url: streamUrl
+    };
+
+    // Add headers if present
+    if (Object.keys(headers).length > 0) {
+        stream.behaviorHints = {
+            ...behaviorHints,
+            headers: headers
+        };
+    } else if (Object.keys(behaviorHints).length > 0) {
+        stream.behaviorHints = behaviorHints;
+    }
+
+    return stream;
+}
+
 // ============ INSTRUCTION HANDLERS ============
 
 async function handleCatalog(args) {
@@ -249,6 +309,23 @@ async function processFetchResult(fetchResult) {
 
     console.log(`\n⚙️ [InatBox Process] Purpose: ${purpose}`);
 
+    // Handle direct stream case (no fetch needed)
+    if (purpose === 'stream' && metadata?.directItem) {
+        const item = metadata.directItem;
+        const chContent = {
+            chName: item.chName || item.diziName,
+            chUrl: vkSourceFix(item.chUrl),
+            chImg: item.chImg || item.diziImg,
+            chHeaders: item.chHeaders || 'null',
+            chReg: item.chReg || 'null',
+            chType: item.chType || 'live_url'
+        };
+
+        const streamObj = buildStreamObject(chContent);
+        console.log(`✅ Direct stream for: ${chContent.chName}`);
+        return { streams: [streamObj] };
+    }
+
     // Parse response (may be encrypted)
     let data = null;
 
@@ -387,15 +464,11 @@ async function processFetchResult(fetchResult) {
             return { streams: [] };
         }
 
-        // Create stream (simple version - no additional extraction yet)
-        const streams = [{
-            name: chContent.chName,
-            title: chContent.chName,
-            url: chContent.chUrl
-        }];
+        // Process headers and build stream object
+        const streamObj = buildStreamObject(chContent);
 
-        console.log(`✅ Found ${streams.length} stream(s)`);
-        return { streams };
+        console.log(`✅ Found stream for: ${chContent.chName}`);
+        return { streams: [streamObj] };
     }
 
     return { ok: true };

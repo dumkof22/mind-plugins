@@ -516,11 +516,106 @@ async function processFetchResult(fetchResult) {
         const $ = cheerio.load(body);
         const streams = [];
 
-        // Önce /series-player/ endpoint'ini kontrol et (reklamlardan sonra yüklenen asıl link)
-        const seriesPlayerMatch = body.match(/file:\s*["']?(\/series-player\/[^"'\s,]+)["']?/);
+        // Debug logging
+        console.log('\n🎬 [STREAM DETECTION] Başlıyor...');
+        console.log('📄 Body preview:', body.substring(0, 300));
+        console.log('🔍 Body içinde anahtar kelimeler:');
+        console.log('   - ".m3u8":', body.includes('.m3u8'));
+        console.log('   - "series-player":', body.includes('series-player'));
+        console.log('   - "iframe":', body.includes('iframe'));
+        console.log('   - "embed":', body.includes('embed'));
+
+        // ========== ADIM 1: IFRAME DETECTION (EN GÜVENİLİR) ==========
+        console.log('\n1️⃣ Iframe sources kontrol ediliyor...');
+
+        const iframeSources = [
+            // Visible iframe in vast_new
+            $('#vast_new iframe').attr('src'),
+            $('#vast_new iframe').attr('data-src'),
+
+            // Hidden iframe in pre-player (reklam oynarken)
+            $('.pre-player iframe').attr('src'),
+            $('.pre-player iframe').attr('data-src'),
+
+            // Series-player-container iframe
+            $('.series-player-container iframe').attr('src'),
+            $('.series-player-container iframe').attr('data-src'),
+
+            // Generic embed iframe
+            $('iframe[src*="embed"]').first().attr('src'),
+            $('iframe[data-src*="embed"]').first().attr('data-src'),
+
+            // Any iframe with src
+            $('iframe[src]').first().attr('src'),
+            $('iframe[data-src]').first().attr('data-src')
+        ].filter(Boolean); // null/undefined temizle
+
+        console.log(`   Bulunan iframe sources: ${iframeSources.length} adet`);
+        if (iframeSources.length > 0) {
+            console.log(`   İlk iframe: ${iframeSources[0].substring(0, 60)}...`);
+        }
+
+        if (iframeSources.length > 0) {
+            const iframeSrc = iframeSources[0];
+            const iframeUrl = iframeSrc.startsWith('http') ? iframeSrc : `https:${iframeSrc}`;
+            console.log(`✅ Iframe bulundu, içeriğini fetch ediyorum: ${iframeUrl.substring(0, 80)}...`);
+
+            const randomId = Math.random().toString(36).substring(2, 10);
+            const requestId = `dizipal-iframe-${Date.now()}-${randomId}`;
+            return {
+                instructions: [{
+                    requestId,
+                    purpose: 'iframe-stream',
+                    url: iframeUrl,
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Referer': url
+                    }
+                }]
+            };
+        }
+
+        // ========== ADIM 2: SERIES-PLAYER ENDPOINT (FALLBACK) ==========
+        console.log('\n2️⃣ Series-player kontrol ediliyor...');
+
+        // Body içinde ara
+        let seriesPlayerMatch = body.match(/file:\s*["']?(\/series-player\/[^"'\s,]+)["']?/);
+
+        // Script tag'lerinde ara
+        if (!seriesPlayerMatch) {
+            $('script').each((i, script) => {
+                const content = $(script).html() || '';
+                if (content.includes('series-player')) {
+                    const match = content.match(/["'](\/series-player\/[^"']+)["']/);
+                    if (match) {
+                        seriesPlayerMatch = match;
+                        console.log('   Series-player script tag içinde bulundu');
+                        return false; // break
+                    }
+                }
+            });
+        }
+
+        // Inline onclick/data attributelerinde ara
+        if (!seriesPlayerMatch) {
+            $('[onclick*="series-player"], [data-url*="series-player"]').each((i, elem) => {
+                const onclick = $(elem).attr('onclick') || '';
+                const dataUrl = $(elem).attr('data-url') || '';
+                const combined = onclick + dataUrl;
+                const match = combined.match(/\/series-player\/[^\s"']+/);
+                if (match) {
+                    seriesPlayerMatch = [match[0], match[0]];
+                    console.log('   Series-player inline attribute içinde bulundu');
+                    return false;
+                }
+            });
+        }
+
         if (seriesPlayerMatch) {
-            const seriesPlayerUrl = `${BASE_URL}${seriesPlayerMatch[1]}`;
-            console.log(`🔄 Series player endpoint bulundu, fetch ediyorum: ${seriesPlayerUrl.substring(0, 80)}...`);
+            const seriesPlayerUrl = `${BASE_URL}${seriesPlayerMatch[1] || seriesPlayerMatch[0]}`;
+            console.log(`✅ Series player endpoint bulundu: ${seriesPlayerUrl.substring(0, 80)}...`);
 
             const randomId = Math.random().toString(36).substring(2, 10);
             const requestId = `dizipal-series-player-${Date.now()}-${randomId}`;
@@ -540,51 +635,64 @@ async function processFetchResult(fetchResult) {
             };
         }
 
-        // Iframe kontrolü (fallback)
-        const iframe = $('iframe[src*="embed"]').first();
-        if (iframe.length) {
-            const iframeSrc = iframe.attr('src') || iframe.attr('data-src');
-            if (iframeSrc) {
-                const iframeUrl = iframeSrc.startsWith('http') ? iframeSrc : `https:${iframeSrc}`;
-                console.log(`🔄 Iframe bulundu, içeriğini fetch ediyorum: ${iframeUrl.substring(0, 80)}...`);
+        // ========== ADIM 3: DIRECT M3U8 DETECTION ==========
+        console.log('\n3️⃣ M3U8 pattern\'leri aranıyor...');
 
-                const randomId = Math.random().toString(36).substring(2, 10);
-                const requestId = `dizipal-iframe-${Date.now()}-${randomId}`;
-                return {
-                    instructions: [{
-                        requestId,
-                        purpose: 'iframe-stream',
-                        url: iframeUrl,
-                        method: 'GET',
-                        headers: {
-                            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                            'Referer': url
-                        }
-                    }]
-                };
-            }
+        // ÖNCE: En kesin pattern'ler
+        let m3uMatch = body.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
+        if (!m3uMatch) m3uMatch = body.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/);
+        if (!m3uMatch) m3uMatch = body.match(/source:\s*["']([^"']+\.m3u8[^"']*)["']/);
+        if (!m3uMatch) m3uMatch = body.match(/sources:\s*\[\s*["']([^"']+\.m3u8[^"']*)["']/);
+
+        // SONRA: URL içinde m3u8 olanlar
+        if (!m3uMatch) {
+            m3uMatch = body.match(/(https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*)/);
         }
 
-        // M3U8 linkini farklı pattern'lerle ara
-        let m3uMatch = body.match(/file:"([^"]+\.m3u8[^"]*)"/);
-        if (!m3uMatch) m3uMatch = body.match(/file:'([^']+\.m3u8[^']*)'/);
-        if (!m3uMatch) m3uMatch = body.match(/"file":"([^"]+\.m3u8[^"]*)"/);
-        if (!m3uMatch) m3uMatch = body.match(/sources:\s*\[\s*\{\s*file:\s*"([^"]+)"/);
-        if (!m3uMatch) m3uMatch = body.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/);
-
-        // Script tag'lerini kontrol et
+        // EN SON: Script tag'leri içinde detaylı arama
         if (!m3uMatch) {
+            console.log('   Script tag\'leri taranıyor...');
             const scripts = $('script').toArray();
             for (let script of scripts) {
                 const scriptContent = $(script).html() || '';
-                if (scriptContent.includes('.m3u8') || scriptContent.includes('file:')) {
-                    // Script içinde m3u8 ara
-                    m3uMatch = scriptContent.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
+
+                if (scriptContent.includes('.m3u8')) {
+                    // Önce JSON parse dene
+                    if (scriptContent.includes('{') && scriptContent.includes('file')) {
+                        try {
+                            const jsonMatch = scriptContent.match(/\{[^}]*"file"[^}]*\}/);
+                            if (jsonMatch) {
+                                const data = JSON.parse(jsonMatch[0]);
+                                if (data.file && data.file.includes('.m3u8')) {
+                                    m3uMatch = [data.file, data.file];
+                                    console.log('   M3U8 JSON formatında bulundu');
+                                    break;
+                                }
+                            }
+                        } catch (e) {
+                            // JSON parse hatası, devam et
+                        }
+                    }
+
+                    // Pattern matching
+                    if (!m3uMatch) m3uMatch = scriptContent.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
                     if (!m3uMatch) m3uMatch = scriptContent.match(/["']([^"']*\.m3u8[^"']*)["']/);
-                    if (!m3uMatch) m3uMatch = scriptContent.match(/(https?:\/\/[^\s"']+\.m3u8[^\s"']*)/);
+                    if (!m3uMatch) m3uMatch = scriptContent.match(/(https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*)/);
+
+                    // Manuel extraction (tüm m3u8 URL'lerini bul)
                     if (!m3uMatch) {
-                        // Manuel extraction
+                        const allUrls = scriptContent.match(/https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*/g);
+                        if (allUrls && allUrls.length > 0) {
+                            // En uzun olanı al (genelde daha detaylı parametrelere sahip)
+                            const longestUrl = allUrls.sort((a, b) => b.length - a.length)[0];
+                            m3uMatch = [longestUrl, longestUrl];
+                            console.log(`   M3U8 manuel extraction ile bulundu (${allUrls.length} aday)`);
+                            break;
+                        }
+                    }
+
+                    // Son çare: .m3u8'den geriye doğru URL çıkar
+                    if (!m3uMatch) {
                         const m3u8Pos = scriptContent.indexOf('.m3u8');
                         if (m3u8Pos !== -1) {
                             let urlStart = scriptContent.lastIndexOf('http://', m3u8Pos);
@@ -599,6 +707,7 @@ async function processFetchResult(fetchResult) {
 
                                 const extractedUrl = scriptContent.substring(urlStart, urlEnd);
                                 m3uMatch = [extractedUrl, extractedUrl];
+                                console.log('   M3U8 reverse extraction ile bulundu');
                             }
                         }
                     }
@@ -608,10 +717,10 @@ async function processFetchResult(fetchResult) {
             }
         }
 
-        // M3u8 bulunduysa stream ekle
+        // ========== ADIM 4: STREAM OLUŞTUR ==========
         if (m3uMatch) {
             const finalUrl = m3uMatch[1] || m3uMatch[0];
-            console.log(`✅ Stream bulundu: ${finalUrl.substring(0, 80)}...`);
+            console.log(`✅ M3U8 stream bulundu: ${finalUrl.substring(0, 80)}...`);
 
             streams.push({
                 name: 'DiziPal',
@@ -636,7 +745,22 @@ async function processFetchResult(fetchResult) {
                         const langMatch = part.match(/\[([^\]]+)\]/);
                         if (langMatch) {
                             const lang = langMatch[1];
-                            const subUrl = part.replace(`[${lang}]`, '');
+                            const subUrl = part.replace(`[${lang}]`, '').trim();
+                            if (subUrl) {
+                                subtitles.push({
+                                    id: lang.toLowerCase(),
+                                    url: subUrl.startsWith('http') ? subUrl : `${BASE_URL}${subUrl}`,
+                                    lang: lang
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    const langMatch = subtitleData.match(/\[([^\]]+)\]/);
+                    if (langMatch) {
+                        const lang = langMatch[1];
+                        const subUrl = subtitleData.replace(`[${lang}]`, '').trim();
+                        if (subUrl) {
                             subtitles.push({
                                 id: lang.toLowerCase(),
                                 url: subUrl.startsWith('http') ? subUrl : `${BASE_URL}${subUrl}`,
@@ -644,65 +768,78 @@ async function processFetchResult(fetchResult) {
                             });
                         }
                     }
-                } else {
-                    const langMatch = subtitleData.match(/\[([^\]]+)\]/);
-                    if (langMatch) {
-                        const lang = langMatch[1];
-                        const subUrl = subtitleData.replace(`[${lang}]`, '');
-                        subtitles.push({
-                            id: lang.toLowerCase(),
-                            url: subUrl.startsWith('http') ? subUrl : `${BASE_URL}${subUrl}`,
-                            lang: lang
-                        });
-                    }
                 }
             }
 
             if (subtitles.length > 0) {
                 streams[0].subtitles = subtitles;
+                console.log(`   ${subtitles.length} altyazı bulundu`);
             }
         } else {
-            console.log('⚠️ Stream linki bulunamadı (iframe, series-player veya m3u8 yok)');
+            console.log('\n❌ Hiçbir stream kaynağı bulunamadı!');
+            console.log('   Kontrol edilenler:');
+            console.log('   ✗ Iframe (visible/hidden)');
+            console.log('   ✗ Series-player endpoint');
+            console.log('   ✗ Direct M3U8 link');
         }
 
-        console.log(`✅ Found ${streams.length} stream(s)`);
+        console.log(`\n📊 Toplam ${streams.length} stream bulundu`);
         return { streams };
     }
 
     if (purpose === 'iframe-stream') {
-        console.log('\n🔍 [DiziPal Iframe] M3U8 aranıyor...');
+        console.log('\n🔍 [IFRAME STREAM DETECTION] Başlıyor...');
+        console.log('📄 Iframe body preview:', body.substring(0, 300));
         const streams = [];
 
-        // M3U8 linkini farklı pattern'lerle ara (master.m3u8, index.m3u8, playlist.m3u8 hepsi)
+        // ÖNCE: En kesin pattern'ler (file:, source:, src:)
         let m3uMatch = body.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
+        if (!m3uMatch) m3uMatch = body.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/);
         if (!m3uMatch) m3uMatch = body.match(/source:\s*["']([^"']+\.m3u8[^"']*)["']/);
         if (!m3uMatch) m3uMatch = body.match(/src:\s*["']([^"']+\.m3u8[^"']*)["']/);
-        if (!m3uMatch) m3uMatch = body.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/);
-        if (!m3uMatch) m3uMatch = body.match(/"source"\s*:\s*"([^"]+\.m3u8[^"]*)"/);
         if (!m3uMatch) m3uMatch = body.match(/sources:\s*\[\s*["']([^"']+\.m3u8[^"']*)["']/);
 
-        // Direkt URL match - query parametreleri dahil
-        if (!m3uMatch) m3uMatch = body.match(/(https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*)/);
-
-        // Script içeriğinde daha agresif arama
+        // SONRA: Direkt URL match (query parametreleri dahil)
         if (!m3uMatch) {
+            m3uMatch = body.match(/(https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*)/);
+        }
+
+        // Script tag'leri içinde detaylı arama
+        if (!m3uMatch) {
+            console.log('   Script tag\'leri taranıyor...');
             const scriptMatches = body.match(/<script[^>]*>([\s\S]*?)<\/script>/gi);
             if (scriptMatches) {
                 for (const scriptTag of scriptMatches) {
                     const scriptContent = scriptTag.replace(/<\/?script[^>]*>/gi, '');
-                    if (scriptContent.includes('.m3u8') || scriptContent.includes('master') || scriptContent.includes('playlist')) {
-                        // Tüm olası m3u8 URL formatlarını yakala
+
+                    if (scriptContent.includes('.m3u8')) {
+                        // JSON parse dene
+                        if (scriptContent.includes('{') && scriptContent.includes('file')) {
+                            try {
+                                const jsonMatch = scriptContent.match(/\{[^}]*"file"[^}]*\}/);
+                                if (jsonMatch) {
+                                    const data = JSON.parse(jsonMatch[0]);
+                                    if (data.file && data.file.includes('.m3u8')) {
+                                        m3uMatch = [data.file, data.file];
+                                        console.log('   M3U8 JSON formatında bulundu');
+                                        break;
+                                    }
+                                }
+                            } catch (e) {
+                                // JSON parse hatası, devam et
+                            }
+                        }
+
+                        // Pattern matching
                         m3uMatch = scriptContent.match(/["'](https?:\/\/[^"']+\.m3u8[^"']*)["']/);
                         if (!m3uMatch) m3uMatch = scriptContent.match(/(https?:\/\/[^\s"'<>()]+master\.m3u8[^\s"'<>()]*)/);
                         if (!m3uMatch) m3uMatch = scriptContent.match(/(https?:\/\/[^\s"'<>()]+playlist\.m3u8[^\s"'<>()]*)/);
                         if (!m3uMatch) m3uMatch = scriptContent.match(/(https?:\/\/[^\s"'<>()]+index\.m3u8[^\s"'<>()]*)/);
                         if (!m3uMatch) m3uMatch = scriptContent.match(/(https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*)/);
-
-                        // Variable assignment pattern: var x = "url"
                         if (!m3uMatch) m3uMatch = scriptContent.match(/=\s*["'](https?:\/\/[^"']+\.m3u8[^"']*)["']/);
 
                         if (m3uMatch) {
-                            console.log(`🎯 M3U8 bulundu (script içinde)`);
+                            console.log('   M3U8 script içinde bulundu');
                             break;
                         }
                     }
@@ -710,12 +847,12 @@ async function processFetchResult(fetchResult) {
             }
         }
 
-        // Tüm body içinde son çare araması
+        // Tüm body içinde son çare araması (tüm m3u8 URL'lerini bul)
         if (!m3uMatch && body.includes('.m3u8')) {
-            console.log('🔍 Son çare: Body içinde genel arama...');
+            console.log('   Son çare: Tüm body taranıyor...');
             const allM3u8 = body.match(/https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*/g);
             if (allM3u8 && allM3u8.length > 0) {
-                console.log(`📋 Bulunan m3u8 linkleri: ${allM3u8.length} adet`);
+                console.log(`   ${allM3u8.length} adet m3u8 URL bulundu, en uzunu seçiliyor...`);
                 // En uzun URL'i al (genelde master.m3u8 daha detaylı parametrelere sahip)
                 m3uMatch = [allM3u8.reduce((a, b) => a.length > b.length ? a : b)];
             }
@@ -726,11 +863,9 @@ async function processFetchResult(fetchResult) {
 
             // URL'i temizle
             m3uLink = m3uLink.replace(/\\"/g, '"').replace(/\\/g, '').trim();
-
-            // URL'in sonundaki gereksiz karakterleri temizle
             m3uLink = m3uLink.replace(/[,;]+$/, '');
 
-            console.log(`✅ M3U8 bulundu: ${m3uLink.substring(0, 100)}...`);
+            console.log(`✅ Iframe M3U8 bulundu: ${m3uLink.substring(0, 100)}...`);
 
             streams.push({
                 name: 'DiziPal',
@@ -781,31 +916,30 @@ async function processFetchResult(fetchResult) {
 
             if (subtitles.length > 0) {
                 streams[0].subtitles = subtitles;
+                console.log(`   ${subtitles.length} altyazı bulundu`);
             }
         } else {
-            console.log('⚠️ Iframe içinde M3U8 bulunamadı');
-            console.log(`📄 Body preview (ilk 500 karakter): ${body.substring(0, 500)}...`);
-
-            // M3u8 kelimesi var mı kontrol et
+            console.log('\n❌ Iframe içinde M3U8 bulunamadı!');
             if (body.includes('m3u8')) {
-                console.log('⚠️ Body içinde "m3u8" kelimesi var ama pattern eşleşmedi!');
+                console.log('   ⚠️ Body içinde "m3u8" kelimesi var ama pattern eşleşmedi');
+                console.log(`   📄 Body preview: ${body.substring(0, 500)}...`);
             }
         }
 
-        console.log(`✅ Found ${streams.length} stream(s) from iframe`);
+        console.log(`\n📊 Iframe'den ${streams.length} stream bulundu`);
         return { streams };
     }
 
     if (purpose === 'series-player-stream') {
-        console.log('\n🔍 [DiziPal Series Player] M3U8 aranıyor...');
+        console.log('\n🔍 [SERIES-PLAYER STREAM DETECTION] Başlıyor...');
+        console.log('📄 Series-player body preview:', body.substring(0, 300));
         const streams = [];
 
-        // M3U8 linkini ara
+        // ÖNCE: En kesin pattern'ler
         let m3uMatch = body.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
+        if (!m3uMatch) m3uMatch = body.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/);
         if (!m3uMatch) m3uMatch = body.match(/source:\s*["']([^"']+\.m3u8[^"']*)["']/);
         if (!m3uMatch) m3uMatch = body.match(/src:\s*["']([^"']+\.m3u8[^"']*)["']/);
-        if (!m3uMatch) m3uMatch = body.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/);
-        if (!m3uMatch) m3uMatch = body.match(/(https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*)/);
 
         // JSON formatında olabilir
         if (!m3uMatch) {
@@ -815,10 +949,26 @@ async function processFetchResult(fetchResult) {
                     const jsonData = JSON.parse(jsonMatch[0]);
                     if (jsonData.file && jsonData.file.includes('.m3u8')) {
                         m3uMatch = [jsonData.file, jsonData.file];
+                        console.log('   M3U8 JSON formatında bulundu');
                     }
                 }
             } catch (e) {
-                // JSON parse hatası
+                // JSON parse hatası, devam et
+            }
+        }
+
+        // SONRA: Direkt URL match
+        if (!m3uMatch) {
+            m3uMatch = body.match(/(https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*)/);
+        }
+
+        // Tüm m3u8 URL'lerini ara
+        if (!m3uMatch && body.includes('.m3u8')) {
+            console.log('   Tüm m3u8 URL\'leri aranıyor...');
+            const allUrls = body.match(/https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*/g);
+            if (allUrls && allUrls.length > 0) {
+                console.log(`   ${allUrls.length} adet m3u8 URL bulundu`);
+                m3uMatch = [allUrls.sort((a, b) => b.length - a.length)[0]];
             }
         }
 
@@ -827,7 +977,7 @@ async function processFetchResult(fetchResult) {
             m3uLink = m3uLink.replace(/\\"/g, '"').replace(/\\/g, '').trim();
             m3uLink = m3uLink.replace(/[,;]+$/, '');
 
-            console.log(`✅ Series player M3U8 bulundu: ${m3uLink.substring(0, 100)}...`);
+            console.log(`✅ Series-player M3U8 bulundu: ${m3uLink.substring(0, 100)}...`);
 
             streams.push({
                 name: 'DiziPal',
@@ -878,13 +1028,14 @@ async function processFetchResult(fetchResult) {
 
             if (subtitles.length > 0) {
                 streams[0].subtitles = subtitles;
+                console.log(`   ${subtitles.length} altyazı bulundu`);
             }
         } else {
-            console.log('⚠️ Series player endpoint içinde M3U8 bulunamadı');
-            console.log(`📄 Body preview: ${body.substring(0, 500)}...`);
+            console.log('\n❌ Series-player içinde M3U8 bulunamadı!');
+            console.log(`   📄 Body preview: ${body.substring(0, 500)}...`);
         }
 
-        console.log(`✅ Found ${streams.length} stream(s) from series-player`);
+        console.log(`\n📊 Series-player'dan ${streams.length} stream bulundu`);
         return { streams };
     }
 

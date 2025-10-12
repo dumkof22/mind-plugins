@@ -119,6 +119,35 @@ function decodeRapidVid(encodedString) {
     return atob(oBuilder);
 }
 
+function hexDecode(hexString) {
+    // VidMoxy için hex decode
+    const bytes = hexString.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || [];
+    return String.fromCharCode(...bytes);
+}
+
+function getAndUnpack(packedJS) {
+    // Basit unpacker - p,a,c,k,e,d formatı için
+    try {
+        const regex = /eval\(function\(p,a,c,k,e,.*?\)\s*\{.*?return p\}.*?\('(.+?)',(\d+),(\d+),'(.+?)'/s;
+        const match = regex.exec(packedJS);
+        if (!match) return packedJS;
+
+        const [, p, a, c, k] = match;
+        const keys = k.split('|');
+
+        let result = p;
+        for (let i = keys.length - 1; i >= 0; i--) {
+            if (keys[i]) {
+                const regex = new RegExp('\\b' + i.toString(36) + '\\b', 'g');
+                result = result.replace(regex, keys[i]);
+            }
+        }
+        return result;
+    } catch (e) {
+        return packedJS;
+    }
+}
+
 // ============ INSTRUCTION HANDLERS ============
 
 async function handleCatalog(args) {
@@ -282,28 +311,60 @@ async function processFetchResult(fetchResult) {
 
     if (purpose === 'stream') {
         const streams = [];
+        const instructions = []; // Embed sayfaları için ek fetch'ler
 
-        // İframe linklerini direkt ekle
+        // İframe linklerini kontrol et ve gerekirse extract için instruction ekle
         $('iframe').each((i, elem) => {
             const src = $(elem).attr('src') || $(elem).attr('data-src');
             if (src && src.startsWith('http')) {
                 let streamName = 'FullHDFilmizlesene';
+                let needsExtraction = false;
+
                 if (src.includes('rapidvid.net')) {
                     streamName = 'RapidVid';
+                    needsExtraction = true;
                 } else if (src.includes('vidmoxy.com')) {
                     streamName = 'VidMoxy';
+                    needsExtraction = true;
                 } else if (src.includes('trstx.org')) {
                     streamName = 'TRsTX';
+                    needsExtraction = true;
+                } else if (src.includes('sobreatsesuyp.com')) {
+                    streamName = 'Sobreatsesuyp';
+                    needsExtraction = true;
+                } else if (src.includes('turbo.imgz.me')) {
+                    streamName = 'TurboImgz';
+                    needsExtraction = true;
+                } else if (src.includes('turkeyplayer.com')) {
+                    streamName = 'TurkeyPlayer';
+                    needsExtraction = true;
                 }
 
-                streams.push({
-                    name: streamName,
-                    title: `${streamName} Server (iframe)`,
-                    url: src,
-                    behaviorHints: {
-                        notWebReady: true
-                    }
-                });
+                if (needsExtraction) {
+                    // Extraction için instruction ekle
+                    const randomId = Math.random().toString(36).substring(2, 10);
+                    const requestId = `fhd-extract-${streamName}-${Date.now()}-${randomId}`;
+                    instructions.push({
+                        requestId,
+                        purpose: `extract_${streamName.toLowerCase()}`,
+                        url: src,
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Referer': url
+                        }
+                    });
+                } else {
+                    // Direkt iframe olarak ekle
+                    streams.push({
+                        name: streamName,
+                        title: `${streamName} Server (iframe)`,
+                        url: src,
+                        behaviorHints: {
+                            notWebReady: true
+                        }
+                    });
+                }
             }
         });
 
@@ -318,7 +379,7 @@ async function processFetchResult(fetchResult) {
                 const scxData = JSON.parse(scxMatch[1]);
                 const keys = ['atom', 'advid', 'advidprox', 'proton', 'fast', 'fastly', 'tr', 'en'];
 
-                // SCX linklerini işle - ama fetch olmadan sadece decode
+                // SCX linklerini işle ve extract edilecekleri belirle
                 for (const key of keys) {
                     if (scxData[key]?.sx?.t) {
                         const t = scxData[key].sx.t;
@@ -329,13 +390,53 @@ async function processFetchResult(fetchResult) {
                                 const decoded = decodeLink(link);
 
                                 if (decoded && decoded.startsWith('http')) {
-                                    // Sadece iframe olarak ekle (extract etmek için ayrı fetch gerekir)
-                                    streams.push({
-                                        name: `${key.toUpperCase()} - ${idx + 1}`,
-                                        title: `${key.toUpperCase()} Server`,
-                                        url: decoded,
-                                        behaviorHints: { notWebReady: true }
-                                    });
+                                    // URL'yi kontrol et ve gerekirse extraction için instruction ekle
+                                    let streamName = `${key.toUpperCase()} - ${idx + 1}`;
+                                    let needsExtraction = false;
+                                    let extractType = '';
+
+                                    if (decoded.includes('rapidvid.net')) {
+                                        needsExtraction = true;
+                                        extractType = 'rapidvid';
+                                    } else if (decoded.includes('vidmoxy.com')) {
+                                        needsExtraction = true;
+                                        extractType = 'vidmoxy';
+                                    } else if (decoded.includes('trstx.org')) {
+                                        needsExtraction = true;
+                                        extractType = 'trstx';
+                                    } else if (decoded.includes('sobreatsesuyp.com')) {
+                                        needsExtraction = true;
+                                        extractType = 'sobreatsesuyp';
+                                    } else if (decoded.includes('turbo.imgz.me')) {
+                                        needsExtraction = true;
+                                        extractType = 'turboimgz';
+                                    } else if (decoded.includes('turkeyplayer.com')) {
+                                        needsExtraction = true;
+                                        extractType = 'turkeyplayer';
+                                    }
+
+                                    if (needsExtraction) {
+                                        const randomId = Math.random().toString(36).substring(2, 10);
+                                        const requestId = `fhd-extract-${extractType}-${Date.now()}-${randomId}`;
+                                        instructions.push({
+                                            requestId,
+                                            purpose: `extract_${extractType}`,
+                                            url: decoded,
+                                            method: 'GET',
+                                            headers: {
+                                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                                                'Referer': url
+                                            },
+                                            metadata: { streamName }
+                                        });
+                                    } else {
+                                        streams.push({
+                                            name: streamName,
+                                            title: `${key.toUpperCase()} Server`,
+                                            url: decoded,
+                                            behaviorHints: { notWebReady: true }
+                                        });
+                                    }
                                 }
                             }
                         } else if (typeof t === 'object') {
@@ -344,12 +445,52 @@ async function processFetchResult(fetchResult) {
                                     const decoded = decodeLink(link);
 
                                     if (decoded && decoded.startsWith('http')) {
-                                        streams.push({
-                                            name: `${key.toUpperCase()}-${subKey}`,
-                                            title: `${key.toUpperCase()} Server`,
-                                            url: decoded,
-                                            behaviorHints: { notWebReady: true }
-                                        });
+                                        let streamName = `${key.toUpperCase()}-${subKey}`;
+                                        let needsExtraction = false;
+                                        let extractType = '';
+
+                                        if (decoded.includes('rapidvid.net')) {
+                                            needsExtraction = true;
+                                            extractType = 'rapidvid';
+                                        } else if (decoded.includes('vidmoxy.com')) {
+                                            needsExtraction = true;
+                                            extractType = 'vidmoxy';
+                                        } else if (decoded.includes('trstx.org')) {
+                                            needsExtraction = true;
+                                            extractType = 'trstx';
+                                        } else if (decoded.includes('sobreatsesuyp.com')) {
+                                            needsExtraction = true;
+                                            extractType = 'sobreatsesuyp';
+                                        } else if (decoded.includes('turbo.imgz.me')) {
+                                            needsExtraction = true;
+                                            extractType = 'turboimgz';
+                                        } else if (decoded.includes('turkeyplayer.com')) {
+                                            needsExtraction = true;
+                                            extractType = 'turkeyplayer';
+                                        }
+
+                                        if (needsExtraction) {
+                                            const randomId = Math.random().toString(36).substring(2, 10);
+                                            const requestId = `fhd-extract-${extractType}-${Date.now()}-${randomId}`;
+                                            instructions.push({
+                                                requestId,
+                                                purpose: `extract_${extractType}`,
+                                                url: decoded,
+                                                method: 'GET',
+                                                headers: {
+                                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                                                    'Referer': url
+                                                },
+                                                metadata: { streamName }
+                                            });
+                                        } else {
+                                            streams.push({
+                                                name: streamName,
+                                                title: `${key.toUpperCase()} Server`,
+                                                url: decoded,
+                                                behaviorHints: { notWebReady: true }
+                                            });
+                                        }
                                     }
                                 }
                             }
@@ -359,7 +500,253 @@ async function processFetchResult(fetchResult) {
             }
         }
 
-        console.log(`✅ Found ${streams.length} stream(s)`);
+        console.log(`✅ Found ${streams.length} stream(s) and ${instructions.length} extraction(s)`);
+
+        // Eğer extraction instruction'ları varsa, bunları da döndür
+        if (instructions.length > 0) {
+            return { streams, instructions };
+        }
+
+        return { streams };
+    }
+
+    // ============ EXTRACTOR HANDLERS ============
+
+    // RapidVid extraction
+    if (purpose === 'extract_rapidvid') {
+        const streams = [];
+        const streamName = fetchResult.metadata?.streamName || 'RapidVid';
+
+        try {
+            const scriptMatch = body.match(/jwSetup\.sources\s*=\s*\[.*?av\('([^']+)'\)/s);
+            if (scriptMatch) {
+                const encodedValue = scriptMatch[1];
+                const m3u8Url = decodeRapidVid(encodedValue);
+
+                streams.push({
+                    name: streamName,
+                    title: `${streamName}`,
+                    url: m3u8Url,
+                    type: 'm3u8',
+                    behaviorHints: {
+                        notWebReady: false
+                    }
+                });
+            }
+        } catch (e) {
+            console.log('⚠️  RapidVid extraction error:', e.message);
+        }
+
+        console.log(`✅ RapidVid extracted: ${streams.length} stream(s)`);
+        return { streams };
+    }
+
+    // VidMoxy extraction
+    if (purpose === 'extract_vidmoxy') {
+        const streams = [];
+        const streamName = fetchResult.metadata?.streamName || 'VidMoxy';
+
+        try {
+            // Method 1: Hex encoded file (\\x formatında)
+            let fileMatch = body.match(/file:\s*"([^"]+)"/);
+            if (fileMatch && fileMatch[1].includes('\\x')) {
+                const extractedValue = fileMatch[1];
+                const hexParts = extractedValue.split('\\x').filter(x => x.length > 0);
+                const bytes = hexParts.map(hex => parseInt(hex, 16));
+                const decoded = String.fromCharCode(...bytes);
+
+                if (decoded && decoded.startsWith('http')) {
+                    streams.push({
+                        name: streamName,
+                        title: `${streamName}`,
+                        url: decoded,
+                        type: 'm3u8',
+                        behaviorHints: { notWebReady: false }
+                    });
+                }
+            } else {
+                // Method 2: Packed JS
+                const evaljwMatch = body.match(/\};\s*(eval\(function[\s\S]*?)var played = \d+;/);
+                if (evaljwMatch) {
+                    let jwSetup = getAndUnpack(getAndUnpack(evaljwMatch[1]));
+                    jwSetup = jwSetup.replace(/\\\\/g, '\\');
+
+                    const fileMatch2 = jwSetup.match(/file:"([^"]+)"/);
+                    if (fileMatch2) {
+                        const extractedValue = fileMatch2[1];
+                        // \\x pattern'ini ayır
+                        const hexParts = extractedValue.split('\\x').filter(x => x.length > 0);
+                        const bytes = hexParts.map(hex => {
+                            // İlk iki karakter hex değeri
+                            const hexValue = hex.substring(0, 2);
+                            return parseInt(hexValue, 16);
+                        });
+                        const decoded = String.fromCharCode(...bytes);
+
+                        if (decoded && decoded.startsWith('http')) {
+                            streams.push({
+                                name: streamName,
+                                title: `${streamName}`,
+                                url: decoded,
+                                type: 'm3u8',
+                                behaviorHints: { notWebReady: false }
+                            });
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.log('⚠️  VidMoxy extraction error:', e.message);
+        }
+
+        console.log(`✅ VidMoxy extracted: ${streams.length} stream(s)`);
+        return { streams };
+    }
+
+    // TurboImgz extraction
+    if (purpose === 'extract_turboimgz') {
+        const streams = [];
+        const streamName = fetchResult.metadata?.streamName || 'TurboImgz';
+
+        try {
+            const fileMatch = body.match(/file:\s*"([^"]+)"/);
+            if (fileMatch) {
+                streams.push({
+                    name: streamName,
+                    title: `${streamName}`,
+                    url: fileMatch[1],
+                    type: 'm3u8',
+                    behaviorHints: { notWebReady: false }
+                });
+            }
+        } catch (e) {
+            console.log('⚠️  TurboImgz extraction error:', e.message);
+        }
+
+        console.log(`✅ TurboImgz extracted: ${streams.length} stream(s)`);
+        return { streams };
+    }
+
+    // TurkeyPlayer extraction
+    if (purpose === 'extract_turkeyplayer') {
+        const streams = [];
+        const streamName = fetchResult.metadata?.streamName || 'TurkeyPlayer';
+
+        try {
+            const videoMatch = body.match(/var\s+video\s*=\s*({.*?});/s);
+            if (videoMatch) {
+                const videoData = JSON.parse(videoMatch[1]);
+                const masterUrl = `https://watch.turkeyplayer.com/m3u8/8/${videoData.md5}/master.txt?s=1&id=${videoData.id}&cache=1`;
+
+                streams.push({
+                    name: streamName,
+                    title: `${streamName}`,
+                    url: masterUrl,
+                    type: 'm3u8',
+                    behaviorHints: { notWebReady: false }
+                });
+            }
+        } catch (e) {
+            console.log('⚠️  TurkeyPlayer extraction error:', e.message);
+        }
+
+        console.log(`✅ TurkeyPlayer extracted: ${streams.length} stream(s)`);
+        return { streams };
+    }
+
+    // TRsTX ve Sobreatsesuyp için POST request gerekli - instruction chain gerekir
+    if (purpose === 'extract_trstx' || purpose === 'extract_sobreatsesuyp') {
+        const instructions = [];
+        const streamName = fetchResult.metadata?.streamName || (purpose === 'extract_trstx' ? 'TRsTX' : 'Sobreatsesuyp');
+        const mainUrl = purpose === 'extract_trstx' ? 'https://trstx.org' : 'https://sobreatsesuyp.com';
+
+        try {
+            const fileMatch = body.match(/file":"([^"]+)"/);
+            if (fileMatch) {
+                const file = fileMatch[1].replace(/\\/g, '');
+                const postLink = `${mainUrl}/${file}`;
+
+                const randomId = Math.random().toString(36).substring(2, 10);
+                const requestId = `fhd-post-${purpose}-${Date.now()}-${randomId}`;
+
+                instructions.push({
+                    requestId,
+                    purpose: `post_${purpose.replace('extract_', '')}`,
+                    url: postLink,
+                    method: 'POST',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Referer': url
+                    },
+                    metadata: { streamName, mainUrl }
+                });
+            }
+        } catch (e) {
+            console.log(`⚠️  ${streamName} extraction error:`, e.message);
+        }
+
+        return { instructions };
+    }
+
+    // TRsTX/Sobreatsesuyp POST response handler
+    if (purpose === 'post_trstx' || purpose === 'post_sobreatsesuyp') {
+        const instructions = [];
+        const streamName = fetchResult.metadata?.streamName || (purpose === 'post_trstx' ? 'TRsTX' : 'Sobreatsesuyp');
+        const mainUrl = fetchResult.metadata?.mainUrl || (purpose === 'post_trstx' ? 'https://trstx.org' : 'https://sobreatsesuyp.com');
+
+        try {
+            const postJson = JSON.parse(body);
+            if (Array.isArray(postJson) && postJson.length > 1) {
+                for (let i = 1; i < postJson.length; i++) {
+                    const item = postJson[i];
+                    if (item.file && item.title) {
+                        const fileUrl = `${mainUrl}/playlist/${item.file.substring(1)}.txt`;
+
+                        const randomId = Math.random().toString(36).substring(2, 10);
+                        const requestId = `fhd-playlist-${purpose}-${Date.now()}-${randomId}`;
+
+                        instructions.push({
+                            requestId,
+                            purpose: `playlist_${purpose.replace('post_', '')}`,
+                            url: fileUrl,
+                            method: 'POST',
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                                'Referer': url
+                            },
+                            metadata: { streamName: `${streamName} - ${item.title}` }
+                        });
+                    }
+                }
+            }
+        } catch (e) {
+            console.log(`⚠️  ${streamName} POST parsing error:`, e.message);
+        }
+
+        return { instructions };
+    }
+
+    // TRsTX/Sobreatsesuyp playlist handler
+    if (purpose === 'playlist_trstx' || purpose === 'playlist_sobreatsesuyp') {
+        const streams = [];
+        const streamName = fetchResult.metadata?.streamName || 'TRsTX/Sobreatsesuyp';
+
+        try {
+            const m3u8Url = body.trim();
+            if (m3u8Url.startsWith('http')) {
+                streams.push({
+                    name: streamName,
+                    title: streamName,
+                    url: m3u8Url,
+                    type: 'm3u8',
+                    behaviorHints: { notWebReady: false }
+                });
+            }
+        } catch (e) {
+            console.log(`⚠️  ${streamName} playlist error:`, e.message);
+        }
+
+        console.log(`✅ ${streamName} extracted: ${streams.length} stream(s)`);
         return { streams };
     }
 
