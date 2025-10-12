@@ -514,6 +514,7 @@ async function processFetchResult(fetchResult) {
 
     if (purpose === 'stream') {
         const $ = cheerio.load(body);
+        const streams = [];
 
         // Önce iframe src'yi kontrol et - iframe varsa onu fetch et
         const iframe = $('iframe[src*="embed"]').first();
