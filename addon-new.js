@@ -4,9 +4,9 @@ const crypto = require('crypto');
 // Manifest tanımı
 const manifest = {
     id: 'community.fullhdfilmizlesene',
-    version: '2.0.0',
+    version: '3.0.0',
     name: 'FullHDFilmizlesene',
-    description: 'Türkçe film izleme platformu - FullHDFilmizlesene.tv için Stremio eklentisi (Proxy Mode)',
+    description: 'Türkçe film izleme platformu - FullHDFilmizlesene.tv için Stremio eklentisi (Instruction Mode)',
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie'],
     catalogs: [
@@ -70,17 +70,6 @@ const CATALOG_URLS = {
     'fhd_turkish': `${BASE_URL}/filmizle/yerli-filmler-hd-izle/`
 };
 
-// Catalog name to ID mapping (Flutter sends catalog names)
-const CATALOG_NAME_TO_ID = {
-    'En Çok İzlenen Filmler': 'fhd_popular',
-    'IMDB Puanı Yüksek': 'fhd_imdb',
-    'Aksiyon Filmleri': 'fhd_action',
-    'Komedi Filmleri': 'fhd_comedy',
-    'Korku Filmleri': 'fhd_horror',
-    'Yerli Filmler': 'fhd_turkish',
-    'Arama': 'fhd_search'
-};
-
 // Yardımcı fonksiyonlar
 function atob(str) {
     return Buffer.from(str, 'base64').toString('utf-8');
@@ -130,93 +119,115 @@ function decodeRapidVid(encodedString) {
     return atob(oBuilder);
 }
 
-// ============ CATALOG HANDLER ============
-async function handleCatalog(args, proxyFetch) {
-    console.log('\n🎯 [Catalog Handler] Starting...');
+// ============ INSTRUCTION HANDLERS ============
+
+async function handleCatalog(args) {
+    console.log('\n🎯 [FullHD Catalog] Generating instructions...');
     console.log('📋 Args:', JSON.stringify(args, null, 2));
 
-    try {
-        let catalogId = args.id;
+    const catalogId = args.id;
+    const skip = parseInt(args.extra?.skip || 0);
+    const page = Math.floor(skip / 20) + 1;
+    const searchQuery = args.extra?.search;
 
-        // Convert catalog name to ID if needed
-        if (CATALOG_NAME_TO_ID[catalogId]) {
-            console.log(`🔄 Converting catalog name "${catalogId}" to ID "${CATALOG_NAME_TO_ID[catalogId]}"`);
-            catalogId = CATALOG_NAME_TO_ID[catalogId];
+    // Unique request ID (timestamp + random)
+    const randomId = Math.random().toString(36).substring(2, 10);
+
+    // Search catalog
+    if (catalogId === 'fhd_search') {
+        if (!searchQuery) {
+            return { instructions: [] };
         }
 
-        const skip = parseInt(args.extra?.skip || 0);
-        const page = Math.floor(skip / 20) + 1;
-        const searchQuery = args.extra?.search;
-
-        console.log(`📊 Catalog ID: ${catalogId}, Page: ${page}`);
-
-        // Search catalog
-        if (catalogId === 'fhd_search' && searchQuery) {
-            console.log(`🔍 Searching for: ${searchQuery}`);
-            const searchUrl = `${BASE_URL}/arama/${encodeURIComponent(searchQuery)}`;
-
-            const response = await proxyFetch({
-                url: searchUrl,
+        const requestId = `fhd-catalog-search-${Date.now()}-${randomId}`;
+        return {
+            instructions: [{
+                requestId,
+                purpose: 'catalog',
+                url: `${BASE_URL}/arama/${encodeURIComponent(searchQuery)}`,
                 method: 'GET',
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                },
-                timeout: 20000,
-                waitUntil: 'domcontentloaded'
-            });
-
-            const $ = cheerio.load(response.body);
-            const metas = [];
-
-            $('li.film').each((i, elem) => {
-                const title = $(elem).find('span.film-title').text().trim();
-                const href = $(elem).find('a').attr('href');
-                const poster = $(elem).find('img').attr('data-src') || $(elem).find('img').attr('src');
-
-                if (title && href) {
-                    const id = 'fhd:' + Buffer.from(href).toString('base64').replace(/=/g, '');
-                    metas.push({
-                        id: id,
-                        type: 'movie',
-                        name: title,
-                        poster: poster || null
-                    });
                 }
-            });
+            }]
+        };
+    }
 
-            console.log(`✅ Found ${metas.length} search results`);
-            return { metas };
-        }
+    // Normal catalog
+    const url = CATALOG_URLS[catalogId];
+    if (!url) {
+        return { instructions: [] };
+    }
 
-        // Normal catalog
-        const url = CATALOG_URLS[catalogId];
-        if (!url) {
-            console.log(`⚠️  Unknown catalog ID: ${catalogId}`);
-            return { metas: [] };
-        }
-
-        const fullUrl = `${url}${page}`;
-        console.log(`🌐 Fetching URL: ${fullUrl}`);
-
-        const response = await proxyFetch({
-            url: fullUrl,
+    const requestId = `fhd-catalog-${catalogId}-${page}-${Date.now()}-${randomId}`;
+    return {
+        instructions: [{
+            requestId,
+            purpose: 'catalog',
+            url: `${url}${page}`,
             method: 'GET',
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            timeout: 20000,
-            waitUntil: 'domcontentloaded'
-        });
+            }
+        }]
+    };
+}
 
-        console.log(`📦 ProxyFetch returned: ${response ? 'SUCCESS' : 'NULL'}`);
+async function handleMeta(args) {
+    const urlBase64 = args.id.replace('fhd:', '');
+    const url = Buffer.from(urlBase64, 'base64').toString('utf-8');
 
-        const $ = cheerio.load(response.body);
+    const randomId = Math.random().toString(36).substring(2, 10);
+    const requestId = `fhd-meta-${Date.now()}-${randomId}`;
+    return {
+        instructions: [{
+            requestId,
+            purpose: 'meta',
+            url: url,
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        }]
+    };
+}
+
+async function handleStream(args) {
+    const urlBase64 = args.id.replace('fhd:', '');
+    const url = Buffer.from(urlBase64, 'base64').toString('utf-8');
+
+    const randomId = Math.random().toString(36).substring(2, 10);
+    const requestId = `fhd-stream-${Date.now()}-${randomId}`;
+    return {
+        instructions: [{
+            requestId,
+            purpose: 'stream',
+            url: url,
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+        }]
+    };
+}
+
+// ============ FETCH RESULT PROCESSOR ============
+
+async function processFetchResult(fetchResult) {
+    const { purpose, body, url } = fetchResult;
+
+    console.log(`\n⚙️ [FullHD Process] Purpose: ${purpose}`);
+    console.log(`   URL: ${url?.substring(0, 80)}...`);
+
+    const $ = cheerio.load(body);
+
+    if (purpose === 'catalog') {
         const metas = [];
 
         $('li.film').each((i, elem) => {
-            const title = $(elem).find('span.film-title').text();
+            const title = $(elem).find('span.film-title').text().trim();
             const href = $(elem).find('a').attr('href');
-            const poster = $(elem).find('img').attr('data-src');
+            const poster = $(elem).find('img').attr('data-src') || $(elem).find('img').attr('src');
 
             if (title && href) {
                 const id = 'fhd:' + Buffer.from(href).toString('base64').replace(/=/g, '');
@@ -231,30 +242,9 @@ async function handleCatalog(args, proxyFetch) {
 
         console.log(`✅ Found ${metas.length} items in catalog`);
         return { metas };
-    } catch (error) {
-        console.error('❌ Catalog error:', error.message);
-        return { metas: [] };
     }
-}
 
-// ============ META HANDLER ============
-async function handleMeta(args, proxyFetch) {
-    try {
-        const urlBase64 = args.id.replace('fhd:', '');
-        const url = Buffer.from(urlBase64, 'base64').toString('utf-8');
-
-        const response = await proxyFetch({
-            url: url,
-            method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            timeout: 20000,
-            waitUntil: 'domcontentloaded'
-        });
-
-        const $ = cheerio.load(response.body);
-
+    if (purpose === 'meta') {
         const title = $('div.izle-titles').text().trim();
         const poster = $('div img').attr('data-src');
         const description = $('div.ozet-ic > p').text().trim();
@@ -273,7 +263,7 @@ async function handleMeta(args, proxyFetch) {
         });
 
         const meta = {
-            id: args.id,
+            id: fetchResult.requestId.includes('fhd:') ? fetchResult.requestId : 'fhd:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
             type: 'movie',
             name: title,
             poster: poster || null,
@@ -288,31 +278,9 @@ async function handleMeta(args, proxyFetch) {
 
         console.log(`✅ Meta retrieved for: ${title}`);
         return { meta };
-    } catch (error) {
-        console.error('❌ Meta error:', error.message);
-        return { meta: null };
     }
-}
 
-// ============ STREAM HANDLER ============
-async function handleStream(args, proxyFetch) {
-    try {
-        console.log(`\n🎬 Stream request for: ${args.id}`);
-        const urlBase64 = args.id.replace('fhd:', '');
-        const url = Buffer.from(urlBase64, 'base64').toString('utf-8');
-        console.log(`📄 Movie URL: ${url}`);
-
-        const response = await proxyFetch({
-            url: url,
-            method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            timeout: 30000,
-            waitUntil: 'domcontentloaded'
-        });
-
-        const $ = cheerio.load(response.body);
+    if (purpose === 'stream') {
         const streams = [];
 
         // İframe linklerini direkt ekle
@@ -344,307 +312,58 @@ async function handleStream(args, proxyFetch) {
             .map(el => $(el).html())
             .find(script => script && script.includes('scx = '));
 
-        if (!scriptContent) {
-            console.log(`ℹ️  No SCX data found, returning ${streams.length} iframe streams`);
-            return { streams };
-        }
+        if (scriptContent) {
+            const scxMatch = scriptContent.match(/scx = ({.*?});/s);
+            if (scxMatch) {
+                const scxData = JSON.parse(scxMatch[1]);
+                const keys = ['atom', 'advid', 'advidprox', 'proton', 'fast', 'fastly', 'tr', 'en'];
 
-        const scxMatch = scriptContent.match(/scx = ({.*?});/s);
-        if (!scxMatch) {
-            console.log(`ℹ️  SCX found but couldn't parse`);
-            return { streams };
-        }
+                // SCX linklerini işle - ama fetch olmadan sadece decode
+                for (const key of keys) {
+                    if (scxData[key]?.sx?.t) {
+                        const t = scxData[key].sx.t;
 
-        const scxData = JSON.parse(scxMatch[1]);
-        const keys = ['atom', 'advid', 'advidprox', 'proton', 'fast', 'fastly', 'tr', 'en'];
+                        if (Array.isArray(t)) {
+                            for (let idx = 0; idx < t.length; idx++) {
+                                const link = t[idx];
+                                const decoded = decodeLink(link);
 
-        // SCX linklerini işle
-        for (const key of keys) {
-            if (scxData[key]?.sx?.t) {
-                const t = scxData[key].sx.t;
-
-                if (Array.isArray(t)) {
-                    for (let idx = 0; idx < t.length; idx++) {
-                        const link = t[idx];
-                        const decoded = decodeLink(link);
-
-                        if (!decoded || !decoded.startsWith('http')) {
-                            continue;
-                        }
-
-                        // Extract stream from decoded URL
-                        const extractedStreams = await extractStream(decoded, key, proxyFetch);
-                        streams.push(...extractedStreams);
-                    }
-                } else if (typeof t === 'object') {
-                    for (const [subKey, link] of Object.entries(t)) {
-                        if (typeof link === 'string') {
-                            const decoded = decodeLink(link);
-
-                            if (!decoded || !decoded.startsWith('http')) {
-                                continue;
+                                if (decoded && decoded.startsWith('http')) {
+                                    // Sadece iframe olarak ekle (extract etmek için ayrı fetch gerekir)
+                                    streams.push({
+                                        name: `${key.toUpperCase()} - ${idx + 1}`,
+                                        title: `${key.toUpperCase()} Server`,
+                                        url: decoded,
+                                        behaviorHints: { notWebReady: true }
+                                    });
+                                }
                             }
+                        } else if (typeof t === 'object') {
+                            for (const [subKey, link] of Object.entries(t)) {
+                                if (typeof link === 'string') {
+                                    const decoded = decodeLink(link);
 
-                            const extractedStreams = await extractStream(decoded, `${key}-${subKey}`, proxyFetch);
-                            streams.push(...extractedStreams);
+                                    if (decoded && decoded.startsWith('http')) {
+                                        streams.push({
+                                            name: `${key.toUpperCase()}-${subKey}`,
+                                            title: `${key.toUpperCase()} Server`,
+                                            url: decoded,
+                                            behaviorHints: { notWebReady: true }
+                                        });
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
 
-        console.log(`✅ Found ${streams.length} total streams`);
+        console.log(`✅ Found ${streams.length} stream(s)`);
         return { streams };
-    } catch (error) {
-        console.error('❌ Stream error:', error.message);
-        return { streams: [] };
     }
-}
 
-// ============ STREAM EXTRACTORS ============
-async function extractStream(url, key, proxyFetch) {
-    try {
-        if (url.includes('rapidvid.net')) {
-            return await extractRapidVid(url, proxyFetch);
-        } else if (url.includes('vidmoxy.com')) {
-            return await extractVidMoxy(url, proxyFetch);
-        } else if (url.includes('trstx.org')) {
-            return await extractTRsTX(url, proxyFetch);
-        } else if (url.includes('turbo.imgz.me')) {
-            return await extractTurboImgz(url, key, proxyFetch);
-        } else if (url.includes('turkeyplayer.com')) {
-            return await extractTurkeyPlayer(url, proxyFetch);
-        }
-
-        // Fallback - return as iframe
-        return [{
-            name: key.toUpperCase(),
-            title: `${key.toUpperCase()} Server`,
-            url: url,
-            behaviorHints: { notWebReady: true }
-        }];
-    } catch (e) {
-        console.error(`❌ Extract error for ${key}:`, e.message);
-        return [];
-    }
-}
-
-async function extractRapidVid(url, proxyFetch) {
-    try {
-        console.log(`🔍 [RapidVid] Extracting: ${url.substring(0, 60)}...`);
-
-        const response = await proxyFetch({
-            url: url,
-            method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': BASE_URL
-            },
-            timeout: 20000
-        });
-
-        const avMatch = response.body.match(/av\('([^']+)'\)/);
-        if (!avMatch) {
-            console.log(`⚠️  [RapidVid] No av() function found`);
-            return [];
-        }
-
-        const m3u8Url = decodeRapidVid(avMatch[1]);
-
-        if (!m3u8Url || !m3u8Url.startsWith('http')) {
-            console.log(`⚠️  [RapidVid] Invalid decoded URL`);
-            return [];
-        }
-
-        console.log(`✅ [RapidVid] Extracted M3U8`);
-        return [{
-            name: 'RapidVid',
-            title: 'RapidVid - M3U8',
-            url: m3u8Url
-        }];
-    } catch (e) {
-        console.error('❌ [RapidVid] Error:', e.message);
-        return [];
-    }
-}
-
-async function extractVidMoxy(url, proxyFetch) {
-    try {
-        console.log(`🔍 [VidMoxy] Extracting: ${url.substring(0, 60)}...`);
-
-        const response = await proxyFetch({
-            url: url,
-            method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': BASE_URL
-            },
-            timeout: 20000
-        });
-
-        let extractedValue = response.body.match(/file": "(.*)",/);
-        let decoded = null;
-
-        if (extractedValue && extractedValue[1]) {
-            const hex = extractedValue[1];
-            const bytes = hex.split('\\x').filter(x => x).map(x => {
-                const parsed = parseInt(x, 16);
-                return isNaN(parsed) ? 0 : parsed;
-            });
-            decoded = Buffer.from(bytes).toString('utf-8');
-        }
-
-        if (decoded && (decoded.startsWith('http') || decoded.startsWith('//'))) {
-            const finalUrl = decoded.startsWith('//') ? 'https:' + decoded : decoded;
-            console.log(`✅ [VidMoxy] Extracted M3U8`);
-            return [{
-                name: 'VidMoxy',
-                title: 'VidMoxy - M3U8',
-                url: finalUrl
-            }];
-        }
-
-        return [];
-    } catch (e) {
-        console.error('❌ [VidMoxy] Error:', e.message);
-        return [];
-    }
-}
-
-async function extractTRsTX(url, proxyFetch) {
-    try {
-        console.log(`🔍 [TRsTX] Extracting: ${url.substring(0, 60)}...`);
-
-        const response = await proxyFetch({
-            url: url,
-            method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': BASE_URL
-            },
-            timeout: 20000
-        });
-
-        const fileMatch = response.body.match(/file":"([^"]+)"/);
-        if (!fileMatch) {
-            console.log(`⚠️  [TRsTX] No file pattern found`);
-            return [];
-        }
-
-        const file = fileMatch[1].replace(/\\/g, '');
-        const postLink = `https://trstx.org/${file}`;
-
-        const postData = await proxyFetch({
-            url: postLink,
-            method: 'POST',
-            headers: { 'Referer': BASE_URL },
-            timeout: 20000
-        });
-
-        const streams = [];
-        const rawList = JSON.parse(postData.body);
-
-        if (Array.isArray(rawList) && rawList.length > 1) {
-            const vidLinks = new Set();
-
-            for (let i = 1; i < rawList.length; i++) {
-                const item = rawList[i];
-                if (item.file && item.title) {
-                    const fileUrl = `https://trstx.org/playlist/${item.file.substring(1)}.txt`;
-                    const videoData = await proxyFetch({
-                        url: fileUrl,
-                        method: 'POST',
-                        headers: { 'Referer': BASE_URL },
-                        timeout: 15000
-                    });
-
-                    if (!vidLinks.has(videoData.body)) {
-                        vidLinks.add(videoData.body);
-                        streams.push({
-                            name: `TRsTX - ${item.title}`,
-                            title: `TRsTX - ${item.title}`,
-                            url: videoData.body
-                        });
-                    }
-                }
-            }
-        }
-
-        console.log(`✅ [TRsTX] Extracted ${streams.length} streams`);
-        return streams;
-    } catch (e) {
-        console.error('❌ [TRsTX] Error:', e.message);
-        return [];
-    }
-}
-
-async function extractTurboImgz(url, key, proxyFetch) {
-    try {
-        console.log(`🔍 [TurboImgz] Extracting: ${url.substring(0, 60)}...`);
-
-        const response = await proxyFetch({
-            url: url,
-            method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': BASE_URL
-            },
-            timeout: 20000
-        });
-
-        const videoMatch = response.body.match(/file: "(.*)",/);
-        if (!videoMatch) {
-            console.log(`⚠️  [TurboImgz] No file pattern found`);
-            return [];
-        }
-
-        const videoUrl = videoMatch[1];
-        console.log(`✅ [TurboImgz] Extracted M3U8`);
-
-        return [{
-            name: `TurboImgz - ${key.toUpperCase()}`,
-            title: `TurboImgz - ${key.toUpperCase()}`,
-            url: videoUrl
-        }];
-    } catch (e) {
-        console.error('❌ [TurboImgz] Error:', e.message);
-        return [];
-    }
-}
-
-async function extractTurkeyPlayer(url, proxyFetch) {
-    try {
-        console.log(`🔍 [TurkeyPlayer] Extracting: ${url.substring(0, 60)}...`);
-
-        const response = await proxyFetch({
-            url: url,
-            method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': BASE_URL
-            },
-            timeout: 20000
-        });
-
-        const videoJsonMatch = response.body.match(/var\s+video\s*=\s*(\{.*?\});/s);
-        if (!videoJsonMatch) {
-            console.log(`⚠️  [TurkeyPlayer] No video JSON found`);
-            return [];
-        }
-
-        const videoData = JSON.parse(videoJsonMatch[1]);
-        const masterUrl = `https://watch.turkeyplayer.com/m3u8/8/${videoData.md5}/master.txt?s=1&id=${videoData.id}&cache=1`;
-
-        console.log(`✅ [TurkeyPlayer] Built master URL`);
-        return [{
-            name: 'TurkeyPlayer',
-            title: 'TurkeyPlayer - M3U8',
-            url: masterUrl
-        }];
-    } catch (e) {
-        console.error('❌ [TurkeyPlayer] Error:', e.message);
-        return [];
-    }
+    return { ok: true };
 }
 
 // Export functions
@@ -653,6 +372,6 @@ module.exports = {
     getManifest: () => manifest,
     handleCatalog,
     handleMeta,
-    handleStream
+    handleStream,
+    processFetchResult
 };
-

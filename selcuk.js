@@ -1,6 +1,10 @@
+const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
+const axios = require('axios');
 const cheerio = require('cheerio');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
+const { getWithBypass } = require('./cloudflare-bypass');
 
 // URL cache dosyası
 const URL_CACHE_FILE = path.join(__dirname, '.selcuk_url_cache.json');
@@ -34,9 +38,9 @@ function saveCachedUrl(url, number) {
 // Manifest tanımı
 const manifest = {
     id: 'community.selcuksports',
-    version: '2.0.0',
+    version: '1.0.0',
     name: 'SelcukSports HD',
-    description: 'Canlı spor kanalları - SelcukSports için Stremio eklentisi (Proxy Mode)',
+    description: 'Canlı spor kanalları - SelcukSports için Stremio eklentisi',
     resources: ['catalog', 'meta', 'stream'],
     types: ['tv', 'channel'],
     catalogs: [
@@ -86,26 +90,19 @@ const manifest = {
     idPrefixes: ['selcuk']
 };
 
-// Catalog name to ID mapping (Flutter sends catalog names)
-const CATALOG_NAME_TO_ID = {
-    '🔴 Canlı Maçlar': 'selcuk_live_matches',
-    '⚽ beIN SPORTS': 'selcuk_bein_sports',
-    '🏀 S Sport': 'selcuk_s_sport',
-    '📺 Tivibu Spor': 'selcuk_tivibu_spor',
-    '📱 tabii Spor': 'selcuk_tabii_spor',
-    '🎾 Diğer Spor Kanalları': 'selcuk_other_sports',
-    '📡 Tüm Kanallar (7/24)': 'selcuk_all_channels'
-};
+const builder = new addonBuilder(manifest);
 
 // Dinamik BASE_URL yönetimi
-const DEFAULT_URL = process.env.SELCUK_URL || 'https://www.sporcafe-2fd65c4bc314.xyz';
+const DEFAULT_URL = process.env.SELCUK_URL || 'https://www.sporcafe-2fd65c4bc314.xyz/';
 const cachedUrlData = loadCachedUrl();
 let BASE_URL = cachedUrlData ? cachedUrlData.url : DEFAULT_URL;
+const MAX_RETRIES = parseInt(process.env.SELCUK_MAX_RETRIES || '10');
 
 console.log(`⚽ SelcukSports Addon başlatılıyor...`);
 console.log(`📍 Başlangıç URL: ${BASE_URL}`);
+console.log(`📍 Maksimum deneme: ${MAX_RETRIES}`);
 
-// Header fonksiyonu
+// Header fonksiyonu - Özel referer gereksinimleri için
 function getHeaders(referer = BASE_URL) {
     return {
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -120,21 +117,24 @@ function getHeaders(referer = BASE_URL) {
 }
 
 // URL'yi test et ve çalışan URL'yi bul
-async function findWorkingUrl(currentUrl, proxyFetch) {
+async function findWorkingUrl(currentUrl = BASE_URL) {
     console.log(`🔍 SelcukSports için çalışan URL aranıyor... Test URL: ${currentUrl}`);
 
     try {
         console.log(`[1/1] Test ediliyor: ${currentUrl}`);
 
-        const response = await proxyFetch({
-            url: currentUrl,
-            method: 'GET',
+        const html = await getWithBypass(currentUrl, {
             headers: getHeaders(currentUrl),
             timeout: 15000,
             waitUntil: 'domcontentloaded'
         });
 
-        const html = response.body;
+        // Final URL'yi al (redirect sonrası)
+        const finalUrl = currentUrl;
+
+        if (finalUrl !== currentUrl) {
+            console.log(`   🔄 Redirect: ${currentUrl} → ${finalUrl}`);
+        }
 
         // SelcukSports içerik kontrolü
         const isSelcukSports = (
@@ -149,9 +149,11 @@ async function findWorkingUrl(currentUrl, proxyFetch) {
         );
 
         if (isSelcukSports) {
-            BASE_URL = currentUrl.replace(/\/$/, '');
-            const urlHash = currentUrl.match(/sporcafe-([a-z0-9]+)\.xyz/i)?.[1] ||
-                currentUrl.match(/selcuksportshd([a-z0-9]+)\.xyz/i)?.[1] || 'unknown';
+            // Final URL'yi kullan (redirect sonrası)
+            BASE_URL = finalUrl.replace(/\/$/, ''); // Sondaki / varsa kaldır
+
+            // Final URL'yi cache'e kaydet (number yerine url hash'ini kullan)
+            const urlHash = finalUrl.match(/selcuksportshd([a-z0-9]+)\.xyz/i)?.[1] || 'unknown';
             saveCachedUrl(BASE_URL, urlHash);
             console.log(`✅ Çalışan URL bulundu ve kaydedildi: ${BASE_URL}`);
             return true;
@@ -166,17 +168,30 @@ async function findWorkingUrl(currentUrl, proxyFetch) {
 }
 
 // URL'yi test et, çalışmıyorsa yenisini bul
-async function ensureWorkingUrl(proxyFetch) {
+async function ensureWorkingUrl() {
     try {
-        const response = await proxyFetch({
-            url: BASE_URL,
-            method: 'GET',
+        const html = await getWithBypass(BASE_URL, {
             headers: getHeaders(BASE_URL),
             timeout: 15000,
             waitUntil: 'domcontentloaded'
         });
 
-        const html = response.body;
+        // Final URL'yi kontrol et (redirect varsa)
+        let finalUrl = BASE_URL;
+
+        // Eğer redirect olduysa, yeni URL'yi güncelle
+        const cleanBaseUrl = BASE_URL.replace(/\/$/, '');
+        const cleanFinalUrl = finalUrl.replace(/\/$/, '');
+
+        if (cleanFinalUrl !== cleanBaseUrl) {
+            console.log(`🔄 Redirect tespit edildi: ${cleanBaseUrl} → ${cleanFinalUrl}`);
+            BASE_URL = cleanFinalUrl;
+
+            // URL'den hash'i çıkar (selcuksportshd26daa9e5a0.xyz formatında)
+            const urlHash = BASE_URL.match(/selcuksportshd([a-z0-9]+)\.xyz/i)?.[1] || 'unknown';
+            saveCachedUrl(BASE_URL, urlHash);
+            console.log(`💾 Yeni URL cache'e kaydedildi: ${BASE_URL} (hash: ${urlHash})`);
+        }
 
         const isSelcukSports = (
             html.includes('selcuksports') ||
@@ -195,14 +210,19 @@ async function ensureWorkingUrl(proxyFetch) {
         } else {
             console.log(`⚠ Mevcut URL yanıt verdi ama SelcukSports içeriği yok: ${BASE_URL}`);
             console.log(`🔄 URL doğrulanıyor...`);
-            return await findWorkingUrl(BASE_URL, proxyFetch);
+            return await findWorkingUrl(BASE_URL);
         }
     } catch (error) {
         console.log(`⚠ Mevcut URL çalışmıyor: ${BASE_URL} (${error.message})`);
         console.log(`🔄 URL doğrulanıyor...`);
-        return await findWorkingUrl(BASE_URL, proxyFetch);
+        return await findWorkingUrl(BASE_URL);
     }
 }
+
+// Başlangıçta çalışan URL'yi bul
+(async () => {
+    await ensureWorkingUrl();
+})();
 
 // Kanal kategorilerine göre regex filtreleme
 function getChannelFilter(catalogId) {
@@ -219,105 +239,36 @@ function getChannelFilter(catalogId) {
 // Kanalları parse et
 function parseChannels($, catalogId) {
     const channels = [];
-    const PLAYER_BASE_URL = 'https://main.uxsyplayerb03b3c895b.click/index.php';
 
-    // Script içindeki channelsData JSON'ını parse et
-    const scriptContent = $('script').toArray()
-        .map(el => $(el).html())
-        .find(script => script && script.includes('channelsData'));
+    // data-url attribute'una sahip tüm linkleri bul
+    $('a[data-url]').each((i, elem) => {
+        const dataUrl = $(elem).attr('data-url');
+        const channelName = $(elem).find('div.name').text().trim();
+        const timeInfo = $(elem).find('time.time').text().trim();
 
-    let channelsData = [];
-    if (scriptContent) {
-        const channelsMatch = scriptContent.match(/const channelsData = (\[.*?\]);/s);
-        if (channelsMatch) {
-            try {
-                channelsData = JSON.parse(channelsMatch[1]);
-                console.log(`📊 Script'ten ${channelsData.length} kanal bulundu`);
-            } catch (e) {
-                console.log('⚠ channelsData parse hatası:', e.message);
-            }
-        }
-    }
+        if (!dataUrl || !channelName) return;
 
-    // Eğer channelsData varsa, onu kullan
-    if (channelsData.length > 0) {
-        // Katalog bazında filtreleme
-        let filteredChannels = channelsData;
-
-        if (catalogId === 'selcuk_bein_sports') {
-            filteredChannels = channelsData.filter(ch =>
-                /bein.*sports/i.test(ch.name)
-            );
-        } else if (catalogId === 'selcuk_s_sport') {
-            filteredChannels = channelsData.filter(ch =>
-                /s\s*sport/i.test(ch.name)
-            );
-        } else if (catalogId === 'selcuk_tivibu_spor') {
-            filteredChannels = channelsData.filter(ch =>
-                /tivibu\s*spor/i.test(ch.name)
-            );
-        } else if (catalogId === 'selcuk_tabii_spor') {
-            filteredChannels = channelsData.filter(ch =>
-                /tabii\s*spor/i.test(ch.name)
-            );
-        } else if (catalogId === 'selcuk_other_sports') {
-            filteredChannels = channelsData.filter(ch =>
-                /eurosport|nba\s*tv|trt\s*spor|a\s*spor|smart\s*spor/i.test(ch.name)
-            );
-        } else if (catalogId === 'selcuk_all_channels') {
-            // Tüm kanallar - benzersiz hale getir
-            const uniqueStreamUrls = new Set();
-            filteredChannels = channelsData.filter(ch => {
-                if (uniqueStreamUrls.has(ch.stream_url)) {
-                    return false;
-                }
-                uniqueStreamUrls.add(ch.stream_url);
-                return true;
-            });
-        }
-
-        // Kanalları oluştur
-        const addedStreamUrls = new Set();
-        filteredChannels.forEach(channel => {
-            // Aynı stream_url'den sadece bir tane ekle
-            if (addedStreamUrls.has(channel.stream_url)) {
-                return;
-            }
-            addedStreamUrls.add(channel.stream_url);
-
-            // Player URL'sini oluştur
-            const playerUrl = `${PLAYER_BASE_URL}?id=${channel.stream_url}`;
-            const id = 'selcuk:channel:' + Buffer.from(playerUrl).toString('base64').replace(/=/g, '');
-
-            channels.push({
-                id: id,
-                type: 'tv',
-                name: `📺 ${channel.name}`,
-                poster: `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(channel.name)}`,
-                posterShape: 'square',
-                description: `${channel.name} - Canlı Yayın`
-            });
-        });
-
-        return channels;
-    }
-
-    // Fallback: HTML'den parse et (eski yöntem - yeni yapıya uyarlanmış)
-    $('div.channel-item[data-stream-url]').each((i, elem) => {
-        const streamUrl = $(elem).attr('data-stream-url');
-        const channelName = $(elem).find('div.channel-name').text().trim();
-
-        if (!streamUrl || !channelName) return;
+        // 7/24 kanalları tespit et (tab5 - 7/24 TV sekmesi)
+        const is247Channel = timeInfo === '7/24';
 
         // Katalog filtresine göre kontrol et
-        const filter = getChannelFilter(catalogId);
-        if (catalogId !== 'selcuk_all_channels' && filter && !filter.test(channelName)) {
-            return;
+        if (catalogId === 'selcuk_all_channels') {
+            // Sadece 7/24 kanalları göster
+            if (!is247Channel) return;
+        } else if (catalogId !== 'selcuk_live_matches') {
+            // Diğer kataloglar için 7/24 kanallarını filtrele
+            if (!is247Channel) return;
+
+            const filter = getChannelFilter(catalogId);
+            if (filter && !filter.test(channelName)) return;
         }
 
-        // Player URL'sini oluştur
-        const playerUrl = `${PLAYER_BASE_URL}?id=${streamUrl}`;
-        const id = 'selcuk:channel:' + Buffer.from(playerUrl).toString('base64').replace(/=/g, '');
+        // URL'yi tam hale getir
+        const fullUrl = dataUrl.startsWith('http') ? dataUrl :
+            dataUrl.startsWith('/') ? `${BASE_URL}${dataUrl}` :
+                `${BASE_URL}/${dataUrl}`;
+
+        const id = 'selcuk:channel:' + Buffer.from(fullUrl).toString('base64').replace(/=/g, '');
 
         channels.push({
             id: id,
@@ -336,154 +287,204 @@ function parseChannels($, catalogId) {
 function parseLiveMatches($) {
     const matches = [];
 
-    // Not: Yeni site yapısında canlı maçlar ayrı bir sayfada olabilir
-    // Şimdilik boş dönüyoruz, gerekirse ayrı endpoint eklenebilir
-    console.log('ℹ️  Canlı maçlar yeni site yapısında desteklenmiyor');
+    // data-url attribute'una sahip linkleri bul
+    $('a[data-url]').each((i, elem) => {
+        const dataUrl = $(elem).attr('data-url');
+        const matchName = $(elem).find('div.name').text().trim();
+        const timeInfo = $(elem).find('time.time').text().trim();
+
+        if (!dataUrl || !matchName) return;
+
+        // 7/24 kanallarını atla (bunlar maç değil)
+        if (timeInfo === '7/24') return;
+
+        // Sadece saat bilgisi olanları al (maçlar için)
+        const hasTime = /\d{2}:\d{2}/.test(timeInfo);
+        if (!hasTime) return;
+
+        // URL'yi tam hale getir
+        const fullUrl = dataUrl.startsWith('http') ? dataUrl :
+            dataUrl.startsWith('/') ? `${BASE_URL}${dataUrl}` :
+                `${BASE_URL}/${dataUrl}`;
+
+        const id = 'selcuk:match:' + Buffer.from(fullUrl).toString('base64').replace(/=/g, '');
+
+        matches.push({
+            id: id,
+            type: 'tv',
+            name: `🔴 ${matchName}`,
+            poster: `https://via.placeholder.com/300x450/ff0000/ffffff?text=${encodeURIComponent('CANLI')}`,
+            posterShape: 'square',
+            description: `Canlı Maç: ${matchName} - ${timeInfo}`,
+            releaseInfo: timeInfo
+        });
+    });
 
     return matches;
 }
 
-// ============ CATALOG HANDLER ============
-async function handleCatalog(args, proxyFetch) {
-    console.log('\n🎯 [SelcukSports Catalog Handler] Starting...');
-    console.log('📋 Args:', JSON.stringify(args, null, 2));
-
+// Catalog handler
+builder.defineCatalogHandler(async (args) => {
     try {
-        await ensureWorkingUrl(proxyFetch);
+        await ensureWorkingUrl();
 
-        let catalogId = args.id;
-
-        // Convert catalog name to ID if needed
-        if (CATALOG_NAME_TO_ID[catalogId]) {
-            console.log(`🔄 Converting catalog name "${catalogId}" to ID "${CATALOG_NAME_TO_ID[catalogId]}"`);
-            catalogId = CATALOG_NAME_TO_ID[catalogId];
-        }
-
+        const catalogId = args.id;
         console.log(`Catalog ID: ${catalogId}`);
 
-        const response = await proxyFetch({
-            url: BASE_URL,
-            method: 'GET',
+        const html = await getWithBypass(BASE_URL, {
             headers: getHeaders(),
             timeout: 15000,
             waitUntil: 'domcontentloaded'
         });
 
-        const $ = cheerio.load(response.body);
+        const $ = cheerio.load(html);
         let metas = [];
 
+        // Canlı maçlar için özel parsing
         if (catalogId === 'selcuk_live_matches') {
             metas = parseLiveMatches($);
         } else {
+            // Kanallar için parsing
             metas = parseChannels($, catalogId);
         }
 
         console.log(`${catalogId} için ${metas.length} içerik bulundu`);
 
-        // Benzersiz hale getir
+        // Benzersiz hale getir (중복 제거)
         const uniqueMetas = Array.from(new Map(metas.map(item => [item.name, item])).values());
 
         return { metas: uniqueMetas };
     } catch (error) {
-        console.error('❌ Catalog hatası:', error.message);
+        console.error('Catalog hatası:', error.message);
         return { metas: [] };
     }
-}
+});
 
-// ============ META HANDLER ============
-async function handleMeta(args, proxyFetch) {
-    console.log('\n🎯 [SelcukSports Meta Handler] Starting...');
-
+// Meta handler
+builder.defineMetaHandler(async (args) => {
     try {
-        await ensureWorkingUrl(proxyFetch);
+        await ensureWorkingUrl();
 
         const urlBase64 = args.id.replace('selcuk:channel:', '').replace('selcuk:match:', '');
-        const playerUrl = Buffer.from(urlBase64, 'base64').toString('utf-8');
+        const url = Buffer.from(urlBase64, 'base64').toString('utf-8');
 
-        console.log(`Meta bilgisi alınıyor - Player URL: ${playerUrl}`);
+        console.log(`Meta bilgisi alınıyor: ${url}`);
 
-        // Player URL'sinden stream ID'sini çıkar
-        let channelName = 'Canlı Yayın';
-        try {
-            const urlParams = new URLSearchParams(new URL(playerUrl).search);
-            const streamId = urlParams.get('id');
-            if (streamId) {
-                // Stream ID'sinden kanal adını oluştur (örn: sbeinsports-1 -> beIN Sports 1)
-                channelName = streamId
-                    .replace(/^s/, '')
-                    .replace(/-/g, ' ')
-                    .split(' ')
-                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                    .join(' ');
-                console.log(`📺 Kanal adı stream ID'sinden oluşturuldu: ${channelName}`);
-            }
-        } catch (e) {
-            console.log('⚠ Stream ID parse hatası:', e.message);
-        }
+        const html = await getWithBypass(url, {
+            headers: getHeaders(),
+            timeout: 15000,
+            waitUntil: 'domcontentloaded'
+        });
+
+        const $ = cheerio.load(html);
+
+        // Sayfa başlığından kanal/maç adını al
+        const title = $('title').text().trim() ||
+            $('h1').first().text().trim() ||
+            'Canlı Yayın';
 
         return {
             meta: {
                 id: args.id,
                 type: 'tv',
-                name: channelName,
-                poster: `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(channelName)}`,
+                name: title,
+                poster: `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(title)}`,
                 posterShape: 'square',
-                background: `https://via.placeholder.com/1920x1080/1a1a1a/ffffff?text=${encodeURIComponent(channelName)}`,
-                description: `${channelName} - Canlı Yayın`,
+                background: `https://via.placeholder.com/1920x1080/1a1a1a/ffffff?text=${encodeURIComponent(title)}`,
+                description: `${title} - Canlı Yayın`,
                 genres: ['Spor', 'Canlı TV']
             }
         };
     } catch (error) {
-        console.error('❌ Meta hatası:', error.message);
+        console.error('Meta hatası:', error.message);
         return { meta: null };
     }
-}
+});
 
-// ============ STREAM HANDLER ============
-async function handleStream(args, proxyFetch) {
-    console.log('\n🎯 [SelcukSports Stream Handler] Starting...');
-    const streams = [];
+// Stream handler
+builder.defineStreamHandler(async (args) => {
+    const streams = []; // Stream array'ini tanımla
 
     try {
-        await ensureWorkingUrl(proxyFetch);
+        await ensureWorkingUrl();
 
+        // ID'den player URL'yi çıkar
         const urlBase64 = args.id.replace('selcuk:channel:', '').replace('selcuk:match:', '');
         const playerUrl = Buffer.from(urlBase64, 'base64').toString('utf-8');
 
         console.log(`Stream alınıyor - Player URL: ${playerUrl}`);
 
-        // Player URL'si zaten tam format: https://main.uxsyplayerb03b3c895b.click/index.php?id=sbeinsports-1
+        // Bu URL zaten player URL'si (data-url'den geldi, base64'ten decode edildi)
+        // URL'yi tam hale getir
         let fullPlayerUrl = playerUrl;
+        if (fullPlayerUrl.startsWith('//')) {
+            fullPlayerUrl = 'https:' + fullPlayerUrl;
+        } else if (fullPlayerUrl.startsWith('/')) {
+            fullPlayerUrl = BASE_URL + fullPlayerUrl;
+        } else if (!fullPlayerUrl.startsWith('http')) {
+            fullPlayerUrl = BASE_URL + '/' + fullPlayerUrl;
+        }
+
+        // Gereksiz parametreleri temizle (poster, reklamResim, watermark vb.)
+        // Sadece asıl parametreleri (id, priv gibi) bırak
+        try {
+            const urlObj = new URL(fullPlayerUrl);
+
+            // Hash (#) kısmını tamamen kaldır (poster=, reklamResim=, watermark= vb. içerir)
+            urlObj.hash = '';
+
+            // Query parametrelerini filtrele - sadece id ve priv gibi gerekli olanları tut
+            const params = new URLSearchParams(urlObj.search);
+            const allowedParams = ['id', 'priv']; // İzin verilen parametreler
+            const cleanParams = new URLSearchParams();
+
+            for (const [key, value] of params) {
+                if (allowedParams.includes(key)) {
+                    cleanParams.set(key, value);
+                }
+            }
+
+            urlObj.search = cleanParams.toString();
+            fullPlayerUrl = urlObj.toString();
+
+            console.log(`Temizlenmiş player URL: ${fullPlayerUrl}`);
+        } catch (urlError) {
+            console.log(`URL temizleme hatası (URL olduğu gibi kullanılacak): ${urlError.message}`);
+        }
 
         console.log(`Tam player URL: ${fullPlayerUrl}`);
 
-        // Player sayfasından M3U8 linkini çıkar
+        // Player sayfasından M3U8 linkini çıkarmaya çalış
         try {
             const playerOrigin = new URL(fullPlayerUrl).origin;
             const playerReferer = playerOrigin + '/';
 
             console.log(`📥 Player sayfası indiriliyor...`);
-            const response = await proxyFetch({
-                url: fullPlayerUrl,
-                method: 'GET',
+            const playerContent = await getWithBypass(fullPlayerUrl, {
                 headers: getHeaders(playerReferer),
                 timeout: 30000,
                 waitUntil: 'domcontentloaded'
             });
-
-            const playerContent = response.body;
             console.log(`✓ Player içeriği alındı (${playerContent.length} karakter)`);
 
-            // M3U8 linkini bul
+            // M3U8 linkini bul - SelcukSports için özel pattern'ler
             const m3u8Patterns = [
+                // SelcukSports özel: baseStreamUrl pattern'i
+                // this.baseStreamUrl = 'https://df16ea90s1u1080.ce51f4844d11db76.live/live/';
                 /this\.baseStreamUrl\s*=\s*["']([^"']+)["']/i,
+
+                // Direkt M3U8 URL'leri - playlist.m3u8 ile bitenler
                 /https?:\/\/[a-z0-9]+\.[a-z0-9]+\.[a-z0-9.]+\/[^"'\s]*playlist\.m3u8/gi,
                 /https?:\/\/[a-z0-9]+\.[a-z0-9]+\.[a-z0-9.]+\/[^"'\s]*index\.m3u8/gi,
+
+                // JSON formatları
                 /["']?file["']?\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i,
                 /["']?source["']?\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i,
                 /["']?src["']?\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i,
                 /["']?url["']?\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i,
                 /["']?hlsUrl["']?\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i,
+
+                // Genel M3U8 pattern (son çare)
                 /(https?:\/\/[^"'\s<>]+\.m3u8[^\s"'<>]*)/gi
             ];
 
@@ -495,15 +496,19 @@ async function handleStream(args, proxyFetch) {
                 const matches = playerContent.match(pattern);
                 if (matches) {
                     m3u8Link = matches[1] || matches[0];
+                    // Escape karakterlerini temizle
                     m3u8Link = m3u8Link.replace(/\\/g, '').replace(/\\"/g, '"');
 
+                    // Eğer baseStreamUrl pattern'i ise (ilk pattern)
                     if (i === 0) {
                         baseStreamUrl = m3u8Link;
                         console.log(`✓ baseStreamUrl bulundu: ${baseStreamUrl}`);
 
+                        // URL'den streamId'yi çıkar (id parametresinden)
                         const urlParams = new URLSearchParams(new URL(fullPlayerUrl).search);
                         const streamId = urlParams.get('id') || 'selcukbeinsports1';
 
+                        // M3U8 linkini oluştur
                         m3u8Link = `${baseStreamUrl}${streamId}/playlist.m3u8`;
                         console.log(`✓ M3U8 linki oluşturuldu: ${m3u8Link}`);
                     } else {
@@ -514,14 +519,17 @@ async function handleStream(args, proxyFetch) {
             }
 
             if (m3u8Link) {
+                // M3U8 URL'sinin origin'ini al
                 const m3u8Origin = new URL(m3u8Link).origin;
 
+                // Header'ları Stremio standart formatında hazırla
                 const streamHeaders = {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
                     'Referer': playerReferer,
                     'Origin': m3u8Origin
                 };
 
+                // M3U8 stream'i ekle (header'larla - Stremio standart formatı)
                 streams.push({
                     name: 'SelcukSports HD',
                     title: 'SelcukSports HD (M3U8 + Headers)',
@@ -535,6 +543,7 @@ async function handleStream(args, proxyFetch) {
                     }
                 });
 
+                // Yedek: Header'sız M3U8
                 streams.push({
                     name: 'SelcukSports (Header\'sız)',
                     title: 'SelcukSports HD (M3U8)',
@@ -545,12 +554,16 @@ async function handleStream(args, proxyFetch) {
                     }
                 });
 
-                console.log(`✅ M3U8 stream'leri hazırlandı`);
+                console.log(`✅ M3U8 stream'leri hazırlandı (Stremio standart format):`);
                 console.log(`   M3U8 URL: ${m3u8Link}`);
-                console.log(`   Headers: User-Agent, Referer, Origin`);
+                console.log(`   Headers (proxyHeaders):`);
+                console.log(`     - User-Agent: Mozilla/5.0...`);
+                console.log(`     - Referer: ${playerReferer}`);
+                console.log(`     - Origin: ${m3u8Origin}`);
             } else {
                 console.log(`⚠ M3U8 bulunamadı, iframe player kullanılacak`);
 
+                // M3U8 bulunamadıysa iframe player kullan
                 streams.push({
                     name: 'SelcukSports HD (İframe)',
                     title: 'SelcukSports HD (İframe Player)',
@@ -562,6 +575,7 @@ async function handleStream(args, proxyFetch) {
                 });
             }
 
+            // Her durumda external player seçeneği ekle
             streams.push({
                 name: 'Tarayıcıda Aç',
                 title: 'Tarayıcıda Oynat',
@@ -572,10 +586,16 @@ async function handleStream(args, proxyFetch) {
             });
 
             console.log(`📊 Toplam ${streams.length} stream seçeneği sunuluyor`);
+            console.log(`   1. M3U8 + Headers via proxyHeaders (önerilen)`);
+            console.log(`   2. M3U8 Header'sız (yedek)`);
+            console.log(`   3. Tarayıcıda Aç`);
             return { streams };
 
         } catch (playerError) {
             console.error(`❌ Player analiz hatası: ${playerError.message}`);
+
+            // Hata durumunda fallback: iframe ve external player
+            const playerOrigin = new URL(fullPlayerUrl).origin;
 
             streams.push({
                 name: 'SelcukSports HD (İframe)',
@@ -600,17 +620,10 @@ async function handleStream(args, proxyFetch) {
             return { streams };
         }
     } catch (error) {
-        console.error('❌ Stream hatası:', error.message);
+        console.error('Stream hatası:', error.message);
         return { streams: [] };
     }
-}
+});
 
-// Export functions
-module.exports = {
-    manifest,
-    getManifest: () => manifest,
-    handleCatalog,
-    handleMeta,
-    handleStream
-};
-
+// Export builder for multi-addon server
+module.exports = builder;

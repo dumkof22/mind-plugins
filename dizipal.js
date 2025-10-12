@@ -3,9 +3,9 @@ const cheerio = require('cheerio');
 // Manifest tanımı
 const manifest = {
     id: 'community.dizipal',
-    version: '1.0.0',
+    version: '2.0.0',
     name: 'DiziPal',
-    description: 'Türkçe dizi ve film izleme platformu - DiziPal için Stremio eklentisi',
+    description: 'Türkçe dizi ve film izleme platformu - DiziPal için Stremio eklentisi (Instruction Mode)',
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie', 'series'],
     catalogs: [
@@ -102,33 +102,13 @@ const manifest = {
             name: 'Dizi Ara',
             extra: [
                 { name: 'search', isRequired: true },
-                { name: 'skip', isRequired: false }
-            ]
+                { name: 'skip', isRequired: false }]
         }
     ],
     idPrefixes: ['dizipal']
 };
 
 const BASE_URL = 'https://dizipal1210.com';
-
-// Catalog name to ID mapping (Flutter sends catalog names)
-const CATALOG_NAME_TO_ID = {
-    'Son Bölümler': 'dizipal_latest_episodes',
-    'Yeni Diziler': 'dizipal_series',
-    'Yeni Filmler': 'dizipal_movies',
-    'Netflix Dizileri': 'dizipal_netflix',
-    'Exxen Dizileri': 'dizipal_exxen',
-    'BluTV Dizileri': 'dizipal_blutv',
-    'Disney+ Dizileri': 'dizipal_disney',
-    'Amazon Prime Dizileri': 'dizipal_prime',
-    'Anime': 'dizipal_anime',
-    'Bilimkurgu Dizileri': 'dizipal_scifi_series',
-    'Bilimkurgu Filmleri': 'dizipal_scifi_movies',
-    'Komedi Dizileri': 'dizipal_comedy_series',
-    'Komedi Filmleri': 'dizipal_comedy_movies',
-    'Film Ara': 'dizipal_search',
-    'Dizi Ara': 'dizipal_search_series'
-};
 
 // Katalog URL'lerini dinamik olarak al
 function getCatalogUrls() {
@@ -148,6 +128,111 @@ function getCatalogUrls() {
         'dizipal_comedy_movies': `${BASE_URL}/tur/komedi`
     };
 }
+
+// ============ INSTRUCTION HANDLERS ============
+
+async function handleCatalog(args) {
+    console.log('\n🎯 [DiziPal Catalog] Generating instructions...');
+    console.log('📋 Args:', JSON.stringify(args, null, 2));
+
+    const catalogId = args.id;
+    const searchQuery = args.extra?.search;
+    const randomId = Math.random().toString(36).substring(2, 10);
+
+    // Search catalogs
+    if ((catalogId === 'dizipal_search' || catalogId === 'dizipal_search_series') && searchQuery) {
+        const requestId = `dizipal-search-${catalogId}-${Date.now()}-${randomId}`;
+        return {
+            instructions: [{
+                requestId,
+                purpose: 'catalog-search',
+                url: `${BASE_URL}/api/search-autocomplete`,
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json, text/javascript, */*; q=0.01',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                },
+                body: `query=${encodeURIComponent(searchQuery)}`,
+                metadata: { catalogId }
+            }]
+        };
+    }
+
+    // Normal catalogs
+    const catalogUrls = getCatalogUrls();
+    const url = catalogUrls[catalogId];
+
+    if (!url) {
+        console.log(`Katalog URL bulunamadı: ${catalogId}`);
+        return { instructions: [] };
+    }
+
+    const requestId = `dizipal-catalog-${catalogId}-${Date.now()}-${randomId}`;
+    return {
+        instructions: [{
+            requestId,
+            purpose: 'catalog',
+            url: url,
+            method: 'GET',
+            headers: {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+                'Referer': BASE_URL
+            },
+            metadata: { catalogId }
+        }]
+    };
+}
+
+async function handleMeta(args) {
+    const urlBase64 = args.id.replace('dizipal:', '');
+    const url = Buffer.from(urlBase64, 'base64').toString('utf-8');
+
+    console.log(`📺 [DiziPal Meta] Generating instructions for: ${url.substring(0, 80)}...`);
+
+    const randomId = Math.random().toString(36).substring(2, 10);
+    const requestId = `dizipal-meta-${Date.now()}-${randomId}`;
+    return {
+        instructions: [{
+            requestId,
+            purpose: 'meta',
+            url: url,
+            method: 'GET',
+            headers: {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': BASE_URL
+            }
+        }]
+    };
+}
+
+async function handleStream(args) {
+    const urlBase64 = args.id.replace('dizipal:', '');
+    const url = Buffer.from(urlBase64, 'base64').toString('utf-8');
+
+    console.log(`🎬 [DiziPal Stream] Generating instructions for: ${url.substring(0, 80)}...`);
+
+    const randomId = Math.random().toString(36).substring(2, 10);
+    const requestId = `dizipal-stream-${Date.now()}-${randomId}`;
+    return {
+        instructions: [{
+            requestId,
+            purpose: 'stream',
+            url: url,
+            method: 'GET',
+            headers: {
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': BASE_URL
+            }
+        }]
+    };
+}
+
+// ============ FETCH RESULT PROCESSOR ============
 
 // Son bölümler parse etme
 function parseSonBolumler($, elem) {
@@ -208,58 +293,18 @@ function parseDiziler($, elem) {
     }
 }
 
-// ============ CATALOG HANDLER ============
-async function handleCatalog(args, proxyFetch) {
-    console.log('\n🎯 [DiziPal Catalog Handler] Starting...');
-    console.log('📋 Args:', JSON.stringify(args, null, 2));
+async function processFetchResult(fetchResult) {
+    const { purpose, body, url, metadata } = fetchResult;
 
-    try {
-        let catalogId = args.id;
+    console.log(`\n⚙️ [DiziPal Process] Purpose: ${purpose}`);
+    console.log(`   URL: ${url?.substring(0, 80)}...`);
 
-        // Convert catalog name to ID if needed
-        if (CATALOG_NAME_TO_ID[catalogId]) {
-            console.log(`🔄 Converting catalog name "${catalogId}" to ID "${CATALOG_NAME_TO_ID[catalogId]}"`);
-            catalogId = CATALOG_NAME_TO_ID[catalogId];
-        }
-
-        const searchQuery = args.extra?.search;
-        console.log(`📊 Catalog ID: ${catalogId}, Search Query: ${searchQuery || 'none'}`);
-
-        // Arama katalogları
-        if ((catalogId === 'dizipal_search' || catalogId === 'dizipal_search_series') && searchQuery) {
-            console.log(`🔍 DiziPal'da arama yapılıyor: ${searchQuery}`);
-
-            let searchResults;
-
-            try {
-                // ProxyFetch ile POST isteği yap
-                const response = await proxyFetch({
-                    url: `${BASE_URL}/api/search-autocomplete`,
-                    method: 'POST',
-                    body: `query=${encodeURIComponent(searchQuery)}`,
-                    headers: {
-                        'Accept': 'application/json, text/javascript, */*; q=0.01',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                    },
-                    timeout: 30000,
-                    waitUntil: 'domcontentloaded'
-                });
-
-                // JSON parse et
-                try {
-                    searchResults = JSON.parse(response.body);
-                    console.log('✅ DiziPal arama başarılı');
-                } catch (parseError) {
-                    console.log('❌ Arama sonucu JSON değil, boş döndürülüyor');
-                    return { metas: [] };
-                }
-            } catch (error) {
-                console.log(`❌ DiziPal arama başarısız: ${error.message}`);
-                return { metas: [] };
-            }
+    if (purpose === 'catalog-search') {
+        // Search results are JSON
+        try {
+            const searchResults = JSON.parse(body);
             const metas = [];
+            const catalogId = metadata?.catalogId;
 
             for (const key in searchResults) {
                 const item = searchResults[key];
@@ -282,62 +327,18 @@ async function handleCatalog(args, proxyFetch) {
                 }
             }
 
-            console.log(`${metas.length} arama sonucu bulundu`);
+            console.log(`✅ Found ${metas.length} search results`);
             return { metas };
-        }
-
-        // Normal kataloglar
-        const catalogUrls = getCatalogUrls();
-        const url = catalogUrls[catalogId];
-        if (!url) {
-            console.log(`Katalog URL bulunamadı: ${catalogId}`);
+        } catch (error) {
+            console.log('❌ Search parsing error:', error.message);
             return { metas: [] };
         }
+    }
 
-        console.log(`🌐 Fetching URL: ${url}`);
-
-        // ProxyFetch ile sayfa içeriğini al
-        const response = await proxyFetch({
-            url: url,
-            method: 'GET',
-            headers: {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
-                'Referer': BASE_URL
-            },
-            timeout: 60000,
-            waitUntil: 'domcontentloaded'
-        });
-
-        const html = response.body;
-        console.log(`✅ ProxyFetch başarılı, HTML uzunluğu: ${html.length}`);
-
-        const $ = cheerio.load(html);
+    if (purpose === 'catalog') {
+        const $ = cheerio.load(body);
         const metas = [];
-
-        console.log(`DEBUG: HTML uzunluğu: ${html.length} ${html.length < 50000 ? '⚠️ ÇOK KÜÇÜK!' : '✅'}`);
-        console.log(`DEBUG: Total elements: ${$('*').length}`);
-        console.log(`DEBUG: Body text uzunluğu: ${$('body').text().length}`);
-
-        // HTML başlangıcını göster
-        const htmlStart = html.substring(0, 500).replace(/\n/g, ' ').replace(/\s+/g, ' ');
-        console.log(`DEBUG: HTML başlangıcı: ${htmlStart.substring(0, 200)}...`);
-
-        console.log(`DEBUG: episode-item sayısı: ${$('div.episode-item').length}`);
-        console.log(`DEBUG: article.type2 ul li sayısı: ${$('article.type2 ul li').length}`);
-        console.log(`DEBUG: li.film sayısı: ${$('li.film').length}`);
-        console.log(`DEBUG: ul li sayısı: ${$('ul li').length}`);
-
-        // Cloudflare kontrolü
-        if (html.includes('Checking your browser') || html.includes('Just a moment') ||
-            html.includes('Verifying you are human')) {
-            console.log('⚠️⚠️⚠️ CLOUDFLARE CHALLENGE HALA VAR! ⚠️⚠️⚠️');
-            console.log('💡 Site Cloudflare korumalı ve bypass çalışmıyor olabilir.');
-        }
-
-        // Title kontrol
-        const pageTitle = $('title').text();
-        console.log(`DEBUG: Sayfa title: "${pageTitle}"`);
+        const catalogId = metadata?.catalogId;
 
         // Son bölümler için özel parsing
         if (catalogId === 'dizipal_latest_episodes') {
@@ -347,7 +348,6 @@ async function handleCatalog(args, proxyFetch) {
             });
         } else {
             // Normal dizi/film listesi - birden fazla selector dene
-            // Önce article.type2 ul li dene
             $('article.type2 ul li').each((i, elem) => {
                 const meta = parseDiziler($, elem);
                 if (meta) metas.push(meta);
@@ -355,9 +355,6 @@ async function handleCatalog(args, proxyFetch) {
 
             // Eğer bulunamadıysa alternatif selector'ları dene
             if (metas.length === 0) {
-                console.log('DEBUG: article.type2 bulunamadı, alternatifler deneniyor...');
-
-                // li.film dene
                 $('li.film').each((i, elem) => {
                     const title = $(elem).find('span.film-title, span.title, .title').text().trim();
                     const href = $(elem).find('a').attr('href');
@@ -380,7 +377,6 @@ async function handleCatalog(args, proxyFetch) {
 
             // Hala bulunamadıysa tüm li'leri dene
             if (metas.length === 0) {
-                console.log('DEBUG: li.film de bulunamadı, tüm ul li deneniyor...');
                 $('ul li').each((i, elem) => {
                     const title = $(elem).find('span.title, .title, span').first().text().trim();
                     const href = $(elem).find('a').attr('href');
@@ -401,35 +397,12 @@ async function handleCatalog(args, proxyFetch) {
             }
         }
 
-        console.log(`${catalogId} için ${metas.length} içerik bulundu`);
+        console.log(`✅ Found ${metas.length} items in catalog`);
         return { metas };
-    } catch (error) {
-        console.error('❌ Catalog hatası:', error.message);
-        return { metas: [] };
     }
-}
 
-// ============ META HANDLER ============
-async function handleMeta(args, proxyFetch) {
-    try {
-        const urlBase64 = args.id.replace('dizipal:', '');
-        const url = Buffer.from(urlBase64, 'base64').toString('utf-8');
-
-        console.log(`Meta bilgisi alınıyor: ${url}`);
-
-        const response = await proxyFetch({
-            url: url,
-            method: 'GET',
-            headers: {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': BASE_URL
-            },
-            timeout: 45000,
-            waitUntil: 'domcontentloaded'
-        });
-
-        const $ = cheerio.load(response.body);
+    if (purpose === 'meta') {
+        const $ = cheerio.load(body);
 
         const poster = $('[property="og:image"]').attr('content');
         const description = $('div.summary p').text().trim();
@@ -503,7 +476,7 @@ async function handleMeta(args, proxyFetch) {
 
             return {
                 meta: {
-                    id: args.id,
+                    id: 'dizipal:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
                     type: 'series',
                     name: title,
                     poster: poster || null,
@@ -524,7 +497,7 @@ async function handleMeta(args, proxyFetch) {
 
             return {
                 meta: {
-                    id: args.id,
+                    id: 'dizipal:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
                     type: 'movie',
                     name: title,
                     poster: poster || null,
@@ -537,198 +510,94 @@ async function handleMeta(args, proxyFetch) {
                 }
             };
         }
-    } catch (error) {
-        console.error('❌ Meta hatası:', error.message);
-        return { meta: null };
     }
-}
 
-// ============ STREAM HANDLER ============
-async function handleStream(args, proxyFetch) {
-    try {
-        const urlBase64 = args.id.replace('dizipal:', '');
-        const url = Buffer.from(urlBase64, 'base64').toString('utf-8');
+    if (purpose === 'stream') {
+        const $ = cheerio.load(body);
+        const streams = [];
 
-        console.log(`Stream alınıyor: ${url}`);
+        // M3U8 linkini farklı pattern'lerle ara
+        let m3uMatch = body.match(/file:"([^"]+\.m3u8[^"]*)"/);
+        if (!m3uMatch) m3uMatch = body.match(/file:'([^']+\.m3u8[^']*)'/);
+        if (!m3uMatch) m3uMatch = body.match(/"file":"([^"]+\.m3u8[^"]*)"/);
+        if (!m3uMatch) m3uMatch = body.match(/sources:\s*\[\s*\{\s*file:\s*"([^"]+)"/);
+        if (!m3uMatch) m3uMatch = body.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/);
 
-        const response = await proxyFetch({
-            url: url,
-            method: 'GET',
-            headers: {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': BASE_URL
-            },
-            timeout: 45000,
-            waitUntil: 'domcontentloaded'
-        });
-
-        const pageHtml = response.body;
-        const $ = cheerio.load(pageHtml);
-
-        console.log(`📄 Ana sayfa HTML uzunluğu: ${pageHtml.length}`);
-
-        // Önce ana sayfada m3u8 linkini farklı pattern'lerle ara
-        let m3uMatch = pageHtml.match(/file:"([^"]+\.m3u8[^"]*)"/);
-        if (!m3uMatch) m3uMatch = pageHtml.match(/file:'([^']+\.m3u8[^']*)'/);
-        if (!m3uMatch) m3uMatch = pageHtml.match(/"file":"([^"]+\.m3u8[^"]*)"/);
-        if (!m3uMatch) m3uMatch = pageHtml.match(/sources:\s*\[\s*\{\s*file:\s*"([^"]+)"/);
-        if (!m3uMatch) m3uMatch = pageHtml.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/);
-
-        let iframeContent = pageHtml;
-
-        if (m3uMatch) {
-            console.log('✅ Ana sayfada m3u8 bulundu!');
-        } else {
-            console.log('⚠️ Ana sayfada m3u8 bulunamadı, iframe deneniyor...');
-
-            // Script tag'lerini kontrol et
+        // Script tag'lerini kontrol et
+        if (!m3uMatch) {
             const scripts = $('script').toArray();
-            console.log(`📜 Script tag sayısı: ${scripts.length}`);
-
-            // Script içeriklerinde m3u8 ara
             for (let script of scripts) {
                 const scriptContent = $(script).html() || '';
                 if (scriptContent.includes('.m3u8') || scriptContent.includes('file:')) {
-                    console.log(`🔍 m3u8 içeren script bulundu (${scriptContent.length} karakter)`);
-
-                    // Script içeriğinden örnek göster
-                    const scriptSample = scriptContent.substring(0, 1500);
-                    console.log(`📜 Script örneği:\n${scriptSample}\n`);
-
-                    // .m3u8 geçen yerleri bul
-                    const m3u8Index = scriptContent.indexOf('.m3u8');
-                    if (m3u8Index !== -1) {
-                        const start = Math.max(0, m3u8Index - 200);
-                        const end = Math.min(scriptContent.length, m3u8Index + 200);
-                        console.log(`🎯 .m3u8 çevresindeki içerik:\n${scriptContent.substring(start, end)}\n`);
-                    }
-
-                    // Bu script'te m3u8 ara - farklı pattern'ler
+                    // Script içinde m3u8 ara
                     m3uMatch = scriptContent.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
                     if (!m3uMatch) m3uMatch = scriptContent.match(/["']([^"']*\.m3u8[^"']*)["']/);
                     if (!m3uMatch) m3uMatch = scriptContent.match(/(https?:\/\/[^\s"']+\.m3u8[^\s"']*)/);
                     if (!m3uMatch) {
-                        // Basit substring search - .m3u8'den önce URL başlangıcını bul
+                        // Manuel extraction
                         const m3u8Pos = scriptContent.indexOf('.m3u8');
                         if (m3u8Pos !== -1) {
-                            // Geriye doğru http:// veya https:// ara
                             let urlStart = scriptContent.lastIndexOf('http://', m3u8Pos);
                             if (urlStart === -1) urlStart = scriptContent.lastIndexOf('https://', m3u8Pos);
 
                             if (urlStart !== -1) {
-                                // İleriye doğru URL bitişini bul (boşluk, tırnak, vb)
-                                let urlEnd = m3u8Pos + 5; // .m3u8 sonrası
+                                let urlEnd = m3u8Pos + 5;
                                 while (urlEnd < scriptContent.length &&
                                     !/[\s"'<>]/.test(scriptContent[urlEnd])) {
                                     urlEnd++;
                                 }
 
                                 const extractedUrl = scriptContent.substring(urlStart, urlEnd);
-                                console.log(`🎯 Manuel extraction ile bulundu: ${extractedUrl}`);
                                 m3uMatch = [extractedUrl, extractedUrl];
                             }
                         }
                     }
 
-                    if (m3uMatch) {
-                        console.log('✅ Script içinde m3u8 bulundu!');
-                        iframeContent = scriptContent;
-                        break;
+                    if (m3uMatch) break;
+                }
+            }
+        }
+
+        if (m3uMatch) {
+            const m3uLink = m3uMatch[1] || m3uMatch[0];
+            console.log(`✅ M3U8 bulundu: ${m3uLink.substring(0, 80)}...`);
+
+            streams.push({
+                name: 'DiziPal',
+                title: 'DiziPal Server',
+                url: m3uLink,
+                behaviorHints: {
+                    notWebReady: true,
+                    bingeGroup: 'dizipal-stream'
+                }
+            });
+
+            // Altyazıları bul
+            const subtitles = [];
+            const subtitleMatch = body.match(/"subtitle":"([^"]+)"/);
+
+            if (subtitleMatch) {
+                const subtitleData = subtitleMatch[1];
+
+                if (subtitleData.includes(',')) {
+                    const subtitleParts = subtitleData.split(',');
+                    for (const part of subtitleParts) {
+                        const langMatch = part.match(/\[([^\]]+)\]/);
+                        if (langMatch) {
+                            const lang = langMatch[1];
+                            const subUrl = part.replace(`[${lang}]`, '');
+                            subtitles.push({
+                                id: lang.toLowerCase(),
+                                url: subUrl.startsWith('http') ? subUrl : `${BASE_URL}${subUrl}`,
+                                lang: lang
+                            });
+                        }
                     }
-                }
-            }
-        }
-
-        // Hala bulunamadıysa iframe'e geç
-        if (!m3uMatch) {
-            // iframe URL'ini bul
-            let iframeUrl = $('.series-player-container iframe').attr('src') ||
-                $('div#vast_new iframe').attr('src');
-
-            if (!iframeUrl) {
-                console.log('❌ iframe bulunamadı ve ana sayfada da m3u8 yok');
-                return { streams: [] };
-            }
-
-            // iframe URL'ini tam hale getir
-            if (iframeUrl.startsWith('//')) {
-                iframeUrl = 'https:' + iframeUrl;
-            } else if (iframeUrl.startsWith('/')) {
-                iframeUrl = BASE_URL + iframeUrl;
-            }
-
-            console.log(`🎯 iframe URL: ${iframeUrl}`);
-
-            // iframe içeriğini al
-            try {
-                const iframeResponse = await proxyFetch({
-                    url: iframeUrl,
-                    method: 'GET',
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'Referer': url
-                    },
-                    timeout: 45000,
-                    waitUntil: 'domcontentloaded'
-                });
-
-                if (iframeResponse && iframeResponse.body) {
-                    iframeContent = iframeResponse.body;
-                    console.log(`📄 iframe içerik uzunluğu: ${iframeContent.length}`);
-
-                    // iframe içinde m3u8 ara
-                    m3uMatch = iframeContent.match(/file:\s*["']([^"']+)["']/);
-                    if (!m3uMatch) m3uMatch = iframeContent.match(/["']([^"']*\.m3u8[^"']*)["']/);
-                }
-            } catch (iframeError) {
-                console.log(`❌ iframe yüklenemedi: ${iframeError.message}`);
-                // iframe yüklenemezse ana sayfadan devam et
-            }
-        }
-
-        // M3U8 linkini bul
-        if (!m3uMatch) {
-            console.log('❌ M3U8 linki hiçbir yerde bulunamadı');
-
-            // Debug için ana sayfadan bir örnek göster
-            const sampleHtml = pageHtml.substring(0, 2000);
-            console.log(`📋 Ana sayfa örneği:\n${sampleHtml.substring(0, 500)}`);
-
-            return { streams: [] };
-        }
-
-        const m3uLink = m3uMatch[1];
-        console.log(`✅ M3U8 bulundu: ${m3uLink}`);
-
-        const streams = [];
-
-        // Ana stream
-        streams.push({
-            name: 'DiziPal',
-            title: 'DiziPal Server',
-            url: m3uLink,
-            behaviorHints: {
-                notWebReady: true,
-                bingeGroup: 'dizipal-stream'
-            }
-        });
-
-        // Altyazıları bul
-        const subtitles = [];
-        const subtitleMatch = iframeContent.match(/"subtitle":"([^"]+)"/);
-
-        if (subtitleMatch) {
-            const subtitleData = subtitleMatch[1];
-
-            if (subtitleData.includes(',')) {
-                // Birden fazla altyazı
-                const subtitleParts = subtitleData.split(',');
-                for (const part of subtitleParts) {
-                    const langMatch = part.match(/\[([^\]]+)\]/);
+                } else {
+                    const langMatch = subtitleData.match(/\[([^\]]+)\]/);
                     if (langMatch) {
                         const lang = langMatch[1];
-                        const subUrl = part.replace(`[${lang}]`, '');
+                        const subUrl = subtitleData.replace(`[${lang}]`, '');
                         subtitles.push({
                             id: lang.toLowerCase(),
                             url: subUrl.startsWith('http') ? subUrl : `${BASE_URL}${subUrl}`,
@@ -736,31 +605,20 @@ async function handleStream(args, proxyFetch) {
                         });
                     }
                 }
-            } else {
-                // Tek altyazı
-                const langMatch = subtitleData.match(/\[([^\]]+)\]/);
-                if (langMatch) {
-                    const lang = langMatch[1];
-                    const subUrl = subtitleData.replace(`[${lang}]`, '');
-                    subtitles.push({
-                        id: lang.toLowerCase(),
-                        url: subUrl.startsWith('http') ? subUrl : `${BASE_URL}${subUrl}`,
-                        lang: lang
-                    });
-                }
             }
+
+            if (subtitles.length > 0) {
+                streams[0].subtitles = subtitles;
+            }
+        } else {
+            console.log('⚠️ M3U8 bulunamadı');
         }
 
-        if (subtitles.length > 0) {
-            streams[0].subtitles = subtitles;
-        }
-
-        console.log(`✅ ${streams.length} stream bulundu`);
+        console.log(`✅ Found ${streams.length} stream(s)`);
         return { streams };
-    } catch (error) {
-        console.error('❌ Stream hatası:', error.message);
-        return { streams: [] };
     }
+
+    return { ok: true };
 }
 
 // Export functions
@@ -769,5 +627,6 @@ module.exports = {
     getManifest: () => manifest,
     handleCatalog,
     handleMeta,
-    handleStream
+    handleStream,
+    processFetchResult
 };
