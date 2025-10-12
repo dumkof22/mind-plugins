@@ -516,7 +516,31 @@ async function processFetchResult(fetchResult) {
         const $ = cheerio.load(body);
         const streams = [];
 
-        // Önce iframe src'yi kontrol et - iframe varsa onu fetch et
+        // Önce /series-player/ endpoint'ini kontrol et (reklamlardan sonra yüklenen asıl link)
+        const seriesPlayerMatch = body.match(/file:\s*["']?(\/series-player\/[^"'\s,]+)["']?/);
+        if (seriesPlayerMatch) {
+            const seriesPlayerUrl = `${BASE_URL}${seriesPlayerMatch[1]}`;
+            console.log(`🔄 Series player endpoint bulundu, fetch ediyorum: ${seriesPlayerUrl.substring(0, 80)}...`);
+
+            const randomId = Math.random().toString(36).substring(2, 10);
+            const requestId = `dizipal-series-player-${Date.now()}-${randomId}`;
+            return {
+                instructions: [{
+                    requestId,
+                    purpose: 'series-player-stream',
+                    url: seriesPlayerUrl,
+                    method: 'GET',
+                    headers: {
+                        'Accept': '*/*',
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Referer': url
+                    },
+                    metadata: { originalUrl: url }
+                }]
+            };
+        }
+
+        // Iframe kontrolü (fallback)
         const iframe = $('iframe[src*="embed"]').first();
         if (iframe.length) {
             const iframeSrc = iframe.attr('src') || iframe.attr('data-src');
@@ -542,26 +566,15 @@ async function processFetchResult(fetchResult) {
             }
         }
 
-        // /series-player/ endpoint'ini kontrol et
-        let streamUrl = null;
-        const seriesPlayerMatch = body.match(/file:\s*["']?(\/series-player\/[^"'\s,]+)["']?/);
-        if (seriesPlayerMatch) {
-            streamUrl = `${BASE_URL}${seriesPlayerMatch[1]}`;
-            console.log(`✅ Series player endpoint bulundu: ${streamUrl.substring(0, 80)}...`);
-        }
-
         // M3U8 linkini farklı pattern'lerle ara
-        let m3uMatch = null;
-        if (!streamUrl) {
-            m3uMatch = body.match(/file:"([^"]+\.m3u8[^"]*)"/);
-            if (!m3uMatch) m3uMatch = body.match(/file:'([^']+\.m3u8[^']*)'/);
-            if (!m3uMatch) m3uMatch = body.match(/"file":"([^"]+\.m3u8[^"]*)"/);
-            if (!m3uMatch) m3uMatch = body.match(/sources:\s*\[\s*\{\s*file:\s*"([^"]+)"/);
-            if (!m3uMatch) m3uMatch = body.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/);
-        }
+        let m3uMatch = body.match(/file:"([^"]+\.m3u8[^"]*)"/);
+        if (!m3uMatch) m3uMatch = body.match(/file:'([^']+\.m3u8[^']*)'/);
+        if (!m3uMatch) m3uMatch = body.match(/"file":"([^"]+\.m3u8[^"]*)"/);
+        if (!m3uMatch) m3uMatch = body.match(/sources:\s*\[\s*\{\s*file:\s*"([^"]+)"/);
+        if (!m3uMatch) m3uMatch = body.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/);
 
         // Script tag'lerini kontrol et
-        if (!streamUrl && !m3uMatch) {
+        if (!m3uMatch) {
             const scripts = $('script').toArray();
             for (let script of scripts) {
                 const scriptContent = $(script).html() || '';
@@ -595,9 +608,9 @@ async function processFetchResult(fetchResult) {
             }
         }
 
-        // Stream URL'i veya m3u8 bulunduysa stream ekle
-        if (streamUrl || m3uMatch) {
-            const finalUrl = streamUrl || (m3uMatch[1] || m3uMatch[0]);
+        // M3u8 bulunduysa stream ekle
+        if (m3uMatch) {
+            const finalUrl = m3uMatch[1] || m3uMatch[0];
             console.log(`✅ Stream bulundu: ${finalUrl.substring(0, 80)}...`);
 
             streams.push({
@@ -780,6 +793,98 @@ async function processFetchResult(fetchResult) {
         }
 
         console.log(`✅ Found ${streams.length} stream(s) from iframe`);
+        return { streams };
+    }
+
+    if (purpose === 'series-player-stream') {
+        console.log('\n🔍 [DiziPal Series Player] M3U8 aranıyor...');
+        const streams = [];
+
+        // M3U8 linkini ara
+        let m3uMatch = body.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
+        if (!m3uMatch) m3uMatch = body.match(/source:\s*["']([^"']+\.m3u8[^"']*)["']/);
+        if (!m3uMatch) m3uMatch = body.match(/src:\s*["']([^"']+\.m3u8[^"']*)["']/);
+        if (!m3uMatch) m3uMatch = body.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/);
+        if (!m3uMatch) m3uMatch = body.match(/(https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*)/);
+
+        // JSON formatında olabilir
+        if (!m3uMatch) {
+            try {
+                const jsonMatch = body.match(/\{[^}]*"file"[^}]*\}/);
+                if (jsonMatch) {
+                    const jsonData = JSON.parse(jsonMatch[0]);
+                    if (jsonData.file && jsonData.file.includes('.m3u8')) {
+                        m3uMatch = [jsonData.file, jsonData.file];
+                    }
+                }
+            } catch (e) {
+                // JSON parse hatası
+            }
+        }
+
+        if (m3uMatch) {
+            let m3uLink = m3uMatch[1] || m3uMatch[0];
+            m3uLink = m3uLink.replace(/\\"/g, '"').replace(/\\/g, '').trim();
+            m3uLink = m3uLink.replace(/[,;]+$/, '');
+
+            console.log(`✅ Series player M3U8 bulundu: ${m3uLink.substring(0, 100)}...`);
+
+            streams.push({
+                name: 'DiziPal',
+                title: 'DiziPal Server',
+                url: m3uLink,
+                behaviorHints: {
+                    notWebReady: true,
+                    bingeGroup: 'dizipal-stream'
+                }
+            });
+
+            // Altyazıları ara
+            const subtitles = [];
+            const subtitleMatch = body.match(/["']subtitle["']\s*:\s*["']([^"']+)["']/);
+            if (subtitleMatch) {
+                const subtitleData = subtitleMatch[1];
+                if (subtitleData.includes(',')) {
+                    const subtitleParts = subtitleData.split(',');
+                    for (const part of subtitleParts) {
+                        const langMatch = part.match(/\[([^\]]+)\]/);
+                        if (langMatch) {
+                            const lang = langMatch[1];
+                            const subUrl = part.replace(`[${lang}]`, '').trim();
+                            if (subUrl) {
+                                subtitles.push({
+                                    id: lang.toLowerCase(),
+                                    url: subUrl.startsWith('http') ? subUrl : `${BASE_URL}${subUrl}`,
+                                    lang: lang
+                                });
+                            }
+                        }
+                    }
+                } else {
+                    const langMatch = subtitleData.match(/\[([^\]]+)\]/);
+                    if (langMatch) {
+                        const lang = langMatch[1];
+                        const subUrl = subtitleData.replace(`[${lang}]`, '').trim();
+                        if (subUrl) {
+                            subtitles.push({
+                                id: lang.toLowerCase(),
+                                url: subUrl.startsWith('http') ? subUrl : `${BASE_URL}${subUrl}`,
+                                lang: lang
+                            });
+                        }
+                    }
+                }
+            }
+
+            if (subtitles.length > 0) {
+                streams[0].subtitles = subtitles;
+            }
+        } else {
+            console.log('⚠️ Series player endpoint içinde M3U8 bulunamadı');
+            console.log(`📄 Body preview: ${body.substring(0, 500)}...`);
+        }
+
+        console.log(`✅ Found ${streams.length} stream(s) from series-player`);
         return { streams };
     }
 
