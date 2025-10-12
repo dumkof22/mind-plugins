@@ -13,6 +13,7 @@ const addonModules = {
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
+app.use(express.static('public'));  // ✅ BURAYA EKLEYIN
 
 console.log(`\n🚀 Mind IPTV Backend Server (Instruction-Based Architecture)`);
 console.log(`📦 Loaded addons: ${Object.keys(addonModules).join(', ')}\n`);
