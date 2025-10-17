@@ -2,7 +2,7 @@ const crypto = require('crypto');
 
 // Configuration
 const CONFIG = {
-    contentUrl: 'https://dizibox.cfd',
+    contentUrl: 'https://diziboox.sbs/CDN/001/dizibox',
     aesKey: 'ywevqtjrurkwtqgz',
     userAgent: 'speedrestapi'
 };
@@ -18,57 +18,51 @@ const manifest = {
     types: ['movie', 'series', 'tv'],
     catalogs: [
         { type: 'tv', id: 'spor', name: 'Spor Kanalları' },
-        { type: 'tv', id: 'cable', name: 'Kanallar Liste 1' },
+        { type: 'tv', id: 'list1', name: 'Kanallar Liste 1' },
         { type: 'tv', id: 'list2', name: 'Kanallar Liste 2' },
+        { type: 'tv', id: 'list3', name: 'Kanallar Liste 3' },
         { type: 'tv', id: 'sinema', name: 'Sinema Kanalları' },
         { type: 'tv', id: 'belgesel', name: 'Belgesel Kanalları' },
         { type: 'tv', id: 'ulusal', name: 'Ulusal Kanallar' },
         { type: 'tv', id: 'haber', name: 'Haber Kanalları' },
+        { type: 'tv', id: 'eba', name: 'Eba Kanalları' },
         { type: 'tv', id: 'cocuk', name: 'Çocuk Kanalları' },
         { type: 'tv', id: 'dini', name: 'Dini Kanallar' },
         { type: 'movie', id: 'exxen', name: 'EXXEN' },
         { type: 'movie', id: 'gain', name: 'Gain' },
-        { type: 'movie', id: 'max', name: 'Max-BluTV' },
-        { type: 'movie', id: 'netflix', name: 'Netflix' },
         { type: 'movie', id: 'disney', name: 'Disney+' },
         { type: 'movie', id: 'amazon', name: 'Amazon Prime' },
         { type: 'movie', id: 'hbo', name: 'HBO Max' },
         { type: 'movie', id: 'tabii', name: 'Tabii' },
         { type: 'movie', id: 'mubi', name: 'Mubi' },
         { type: 'movie', id: 'tod', name: 'TOD' },
-        { type: 'series', id: 'yabanci-dizi', name: 'Yabancı Diziler' },
-        { type: 'series', id: 'yerli-dizi', name: 'Yerli Diziler' },
-        { type: 'movie', id: 'yerli-film', name: 'Yerli Filmler' },
-        { type: 'movie', id: '4k-film', name: '4K Film İzle' }
     ],
     idPrefixes: ['inatbox']
 };
 
 // Catalog URL mapping
 const catalogUrls = {
-    spor: 'https://boxyz.cfd/CDN/001_STR/boxyz.cfd/spor_v2.php',
-    cable: `${CONFIG.contentUrl}/tv/cable.php`,
+    spor: 'https://boxbc.icu/CDN/001_STR/boxbc.icu/spor_v2.php',
+
+    list1: `${CONFIG.contentUrl}/tv/list1.php`,
     list2: `${CONFIG.contentUrl}/tv/list2.php`,
+    list3: `${CONFIG.contentUrl}/tv/list3.php`,
     sinema: `${CONFIG.contentUrl}/tv/sinema.php`,
     belgesel: `${CONFIG.contentUrl}/tv/belgesel.php`,
     ulusal: `${CONFIG.contentUrl}/tv/ulusal.php`,
     haber: `${CONFIG.contentUrl}/tv/haber.php`,
+    eba: `${CONFIG.contentUrl}/tv/eba.php`,
     cocuk: `${CONFIG.contentUrl}/tv/cocuk.php`,
     dini: `${CONFIG.contentUrl}/tv/dini.php`,
+
     exxen: `${CONFIG.contentUrl}/ex/index.php`,
     gain: `${CONFIG.contentUrl}/ga/index.php`,
-    max: `${CONFIG.contentUrl}/max/index.php`,
-    netflix: `${CONFIG.contentUrl}/nf/index.php`,
     disney: `${CONFIG.contentUrl}/dsny/index.php`,
     amazon: `${CONFIG.contentUrl}/amz/index.php`,
     hbo: `${CONFIG.contentUrl}/hb/index.php`,
     tabii: `${CONFIG.contentUrl}/tbi/index.php`,
     mubi: `${CONFIG.contentUrl}/film/mubi.php`,
-    tod: `${CONFIG.contentUrl}/ccc/index.php`,
-    'yabanci-dizi': `${CONFIG.contentUrl}/yabanci-dizi/index.php`,
-    'yerli-dizi': `${CONFIG.contentUrl}/yerli-dizi/index.php`,
-    'yerli-film': `${CONFIG.contentUrl}/film/yerli-filmler.php`,
-    '4k-film': `${CONFIG.contentUrl}/film/4k-film-exo.php`
+    tod: 'https://boxbc.icu/CDN/001_STR/boxbc.icu/ccc/index.php',
 };
 
 // AES Decryption
@@ -483,3 +477,4 @@ module.exports = {
     handleStream,
     processFetchResult
 };
+
