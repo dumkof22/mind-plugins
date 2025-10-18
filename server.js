@@ -265,31 +265,33 @@ app.post('/api/fetch-result', async (req, res) => {
         // Process the fetched content (metadata dahil)
         console.log(`⚙️ [Fetch Result] Processing...`);
 
-        // Video extractor için özel kontrol
-        const isExtractor = purpose && purpose.startsWith('extract_');
-        let result;
+        // Önce addon'un kendi processFetchResult'ını dene
+        let result = await addon.processFetchResult({
+            requestId,
+            purpose,
+            url,
+            status,
+            headers,
+            body,
+            metadata  // ✅ Metadata'yı pas geç
+        });
 
-        if (isExtractor && videoExtractors.processVideoExtractor) {
-            console.log(`🔧 [Fetch Result] Using video extractor for: ${purpose}`);
-            result = await videoExtractors.processVideoExtractor({
-                requestId,
-                purpose,
-                url,
-                status,
-                headers,
-                body,
-                metadata
-            });
-        } else {
-            result = await addon.processFetchResult({
-                requestId,
-                purpose,
-                url,
-                status,
-                headers,
-                body,
-                metadata  // ✅ Metadata'yı pas geç
-            });
+        // Eğer addon handle edemediyse (ok: true dönüyorsa) ve extractor purpose'u ise
+        // global video extractor'ları dene
+        if (result.ok === true && !result.streams && !result.instructions && !result.metas && !result.meta) {
+            const isExtractor = purpose && purpose.startsWith('extract_');
+            if (isExtractor && videoExtractors.processVideoExtractor) {
+                console.log(`🔧 [Fetch Result] Trying global video extractor for: ${purpose}`);
+                result = await videoExtractors.processVideoExtractor({
+                    requestId,
+                    purpose,
+                    url,
+                    status,
+                    headers,
+                    body,
+                    metadata
+                });
+            }
         }
 
         console.log(`✅ [Fetch Result] Processed successfully`);

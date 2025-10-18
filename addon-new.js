@@ -392,35 +392,43 @@ async function processFetchResult(fetchResult) {
                                 const decoded = decodeLink(link);
 
                                 if (decoded && decoded.startsWith('http')) {
-                                    // Embed sayfası mı yoksa direkt video URL'i mi kontrol et
+                                    // M3U8 veya embed sayfası kontrolü
+                                    const isDirectVideo = decoded.includes('.m3u8') ||
+                                        decoded.includes('.mp4') ||
+                                        decoded.includes('.mkv') ||
+                                        decoded.includes('.avi');
+
                                     let needsExtraction = false;
                                     let extractPurpose = null;
                                     let streamName = `${key.toUpperCase()} - ${idx + 1}`;
 
-                                    if (decoded.includes('rapidvid.net')) {
-                                        needsExtraction = true;
-                                        extractPurpose = 'extract_rapidvid';
-                                        streamName = `RapidVid (${key.toUpperCase()})`;
-                                    } else if (decoded.includes('vidmoxy.com')) {
-                                        needsExtraction = true;
-                                        extractPurpose = 'extract_vidmoxy';
-                                        streamName = `VidMoxy (${key.toUpperCase()})`;
-                                    } else if (decoded.includes('trstx.org')) {
-                                        needsExtraction = true;
-                                        extractPurpose = 'extract_trstx';
-                                        streamName = `TRsTX (${key.toUpperCase()})`;
-                                    } else if (decoded.includes('sobreatsesuyp.com')) {
-                                        needsExtraction = true;
-                                        extractPurpose = 'extract_sobreatsesuyp';
-                                        streamName = `Sobreatsesuyp (${key.toUpperCase()})`;
-                                    } else if (decoded.includes('turbo.imgz.me')) {
-                                        needsExtraction = true;
-                                        extractPurpose = 'extract_turboimgz';
-                                        streamName = `TurboImgz (${key.toUpperCase()})`;
-                                    } else if (decoded.includes('turkeyplayer.com')) {
-                                        needsExtraction = true;
-                                        extractPurpose = 'extract_turkeyplayer';
-                                        streamName = `TurkeyPlayer (${key.toUpperCase()})`;
+                                    // Embed sayfaları için extraction gerekli
+                                    if (!isDirectVideo) {
+                                        if (decoded.includes('rapidvid.net')) {
+                                            needsExtraction = true;
+                                            extractPurpose = 'extract_rapidvid';
+                                            streamName = `RapidVid (${key.toUpperCase()})`;
+                                        } else if (decoded.includes('vidmoxy.com')) {
+                                            needsExtraction = true;
+                                            extractPurpose = 'extract_vidmoxy';
+                                            streamName = `VidMoxy (${key.toUpperCase()})`;
+                                        } else if (decoded.includes('trstx.org')) {
+                                            needsExtraction = true;
+                                            extractPurpose = 'extract_trstx';
+                                            streamName = `TRsTX (${key.toUpperCase()})`;
+                                        } else if (decoded.includes('sobreatsesuyp.com')) {
+                                            needsExtraction = true;
+                                            extractPurpose = 'extract_sobreatsesuyp';
+                                            streamName = `Sobreatsesuyp (${key.toUpperCase()})`;
+                                        } else if (decoded.includes('turbo.imgz.me')) {
+                                            needsExtraction = true;
+                                            extractPurpose = 'extract_turboimgz';
+                                            streamName = `TurboImgz - ${key.toUpperCase()}`;
+                                        } else if (decoded.includes('turkeyplayer.com')) {
+                                            needsExtraction = true;
+                                            extractPurpose = 'extract_turkeyplayer';
+                                            streamName = `TurkeyPlayer (${key.toUpperCase()})`;
+                                        }
                                     }
 
                                     if (needsExtraction) {
@@ -441,12 +449,11 @@ async function processFetchResult(fetchResult) {
                                         });
                                         console.log(`🔄 SCX needs extraction: ${streamName} - ${decoded.substring(0, 60)}...`);
                                     } else {
-                                        // Direkt m3u8 linki - stream olarak ekle
+                                        // Direkt video linki - stream olarak ekle
                                         streams.push({
                                             name: streamName,
                                             title: `${key.toUpperCase()} Server`,
                                             url: decoded,
-                                            type: 'm3u8',
                                             behaviorHints: { notWebReady: false }
                                         });
                                         console.log(`✅ SCX direct stream: ${streamName} - ${decoded.substring(0, 60)}...`);
@@ -459,35 +466,43 @@ async function processFetchResult(fetchResult) {
                                     const decoded = decodeLink(link);
 
                                     if (decoded && decoded.startsWith('http')) {
-                                        // Embed sayfası mı yoksa direkt video URL'i mi kontrol et
+                                        // M3U8 veya embed sayfası kontrolü
+                                        const isDirectVideo = decoded.includes('.m3u8') ||
+                                            decoded.includes('.mp4') ||
+                                            decoded.includes('.mkv') ||
+                                            decoded.includes('.avi');
+
                                         let needsExtraction = false;
                                         let extractPurpose = null;
                                         let streamName = `${key.toUpperCase()}-${subKey}`;
 
-                                        if (decoded.includes('rapidvid.net')) {
-                                            needsExtraction = true;
-                                            extractPurpose = 'extract_rapidvid';
-                                            streamName = `RapidVid (${key.toUpperCase()})`;
-                                        } else if (decoded.includes('vidmoxy.com')) {
-                                            needsExtraction = true;
-                                            extractPurpose = 'extract_vidmoxy';
-                                            streamName = `VidMoxy (${key.toUpperCase()})`;
-                                        } else if (decoded.includes('trstx.org')) {
-                                            needsExtraction = true;
-                                            extractPurpose = 'extract_trstx';
-                                            streamName = `TRsTX (${key.toUpperCase()})`;
-                                        } else if (decoded.includes('sobreatsesuyp.com')) {
-                                            needsExtraction = true;
-                                            extractPurpose = 'extract_sobreatsesuyp';
-                                            streamName = `Sobreatsesuyp (${key.toUpperCase()})`;
-                                        } else if (decoded.includes('turbo.imgz.me')) {
-                                            needsExtraction = true;
-                                            extractPurpose = 'extract_turboimgz';
-                                            streamName = `TurboImgz (${key.toUpperCase()})`;
-                                        } else if (decoded.includes('turkeyplayer.com')) {
-                                            needsExtraction = true;
-                                            extractPurpose = 'extract_turkeyplayer';
-                                            streamName = `TurkeyPlayer (${key.toUpperCase()})`;
+                                        // Embed sayfaları için extraction gerekli
+                                        if (!isDirectVideo) {
+                                            if (decoded.includes('rapidvid.net')) {
+                                                needsExtraction = true;
+                                                extractPurpose = 'extract_rapidvid';
+                                                streamName = `RapidVid (${key.toUpperCase()})`;
+                                            } else if (decoded.includes('vidmoxy.com')) {
+                                                needsExtraction = true;
+                                                extractPurpose = 'extract_vidmoxy';
+                                                streamName = `VidMoxy (${key.toUpperCase()})`;
+                                            } else if (decoded.includes('trstx.org')) {
+                                                needsExtraction = true;
+                                                extractPurpose = 'extract_trstx';
+                                                streamName = `TRsTX (${key.toUpperCase()})`;
+                                            } else if (decoded.includes('sobreatsesuyp.com')) {
+                                                needsExtraction = true;
+                                                extractPurpose = 'extract_sobreatsesuyp';
+                                                streamName = `Sobreatsesuyp (${key.toUpperCase()})`;
+                                            } else if (decoded.includes('turbo.imgz.me')) {
+                                                needsExtraction = true;
+                                                extractPurpose = 'extract_turboimgz';
+                                                streamName = `TurboImgz - ${key.toUpperCase()}`;
+                                            } else if (decoded.includes('turkeyplayer.com')) {
+                                                needsExtraction = true;
+                                                extractPurpose = 'extract_turkeyplayer';
+                                                streamName = `TurkeyPlayer (${key.toUpperCase()})`;
+                                            }
                                         }
 
                                         if (needsExtraction) {
@@ -508,12 +523,11 @@ async function processFetchResult(fetchResult) {
                                             });
                                             console.log(`🔄 SCX needs extraction: ${streamName} - ${decoded.substring(0, 60)}...`);
                                         } else {
-                                            // Direkt m3u8 linki - stream olarak ekle
+                                            // Direkt video linki - stream olarak ekle
                                             streams.push({
                                                 name: streamName,
                                                 title: `${key.toUpperCase()} Server`,
                                                 url: decoded,
-                                                type: 'm3u8',
                                                 behaviorHints: { notWebReady: false }
                                             });
                                             console.log(`✅ SCX direct stream: ${streamName} - ${decoded.substring(0, 60)}...`);
@@ -557,37 +571,90 @@ async function processFetchResult(fetchResult) {
         const subtitles = [];
 
         try {
-            // Extract subtitles (jwSetup.tracks)
-            const trackMatch = body.match(/jwSetup\.tracks\s*=\s*(\[.*?\]);/s);
-            if (trackMatch) {
-                try {
-                    const tracks = JSON.parse(trackMatch[1]);
-                    tracks.forEach(track => {
-                        if (track.file && track.label) {
-                            const lang = track.label
-                                .replace(/\\u0131/g, 'ı')
-                                .replace(/\\u0130/g, 'İ')
-                                .replace(/\\u00fc/g, 'ü')
-                                .replace(/\\u00e7/g, 'ç');
-                            const subUrl = track.file.replace(/\\/g, '');
-                            subtitles.push({ lang, url: subUrl });
-                        }
-                    });
-                } catch (e) {
-                    console.log('⚠️  RapidVid subtitle parse error:', e.message);
+            // Extract subtitles - Method 1: captions regex (Kotlin method)
+            const captionRegex = /captions","file":"([^"]+)","label":"([^"]+)"/g;
+            let captionMatch;
+            const subUrls = new Set();
+            while ((captionMatch = captionRegex.exec(body)) !== null) {
+                const subUrl = captionMatch[1].replace(/\\/g, '');
+                const lang = captionMatch[2]
+                    .replace(/\\u0131/g, 'ı')
+                    .replace(/\\u0130/g, 'İ')
+                    .replace(/\\u00fc/g, 'ü')
+                    .replace(/\\u00e7/g, 'ç');
+
+                if (!subUrls.has(subUrl)) {
+                    subUrls.add(subUrl);
+                    subtitles.push({ lang, url: subUrl });
                 }
             }
 
-            // Extract video URL
-            const scriptMatch = body.match(/jwSetup\.sources\s*=\s*\[.*?av\('([^']+)'\)/s);
-            if (scriptMatch) {
-                const encodedValue = scriptMatch[1];
-                const m3u8Url = decodeRapidVid(encodedValue);
+            // Extract subtitles - Method 2: jwSetup.tracks (backup method)
+            if (subtitles.length === 0) {
+                const trackMatch = body.match(/jwSetup\.tracks\s*=\s*(\[.*?\]);/s);
+                if (trackMatch) {
+                    try {
+                        const tracks = JSON.parse(trackMatch[1]);
+                        tracks.forEach(track => {
+                            if (track.file && track.label) {
+                                const lang = track.label
+                                    .replace(/\\u0131/g, 'ı')
+                                    .replace(/\\u0130/g, 'İ')
+                                    .replace(/\\u00fc/g, 'ü')
+                                    .replace(/\\u00e7/g, 'ç');
+                                const subUrl = track.file.replace(/\\/g, '');
+                                subtitles.push({ lang, url: subUrl });
+                            }
+                        });
+                    } catch (e) {
+                        console.log('⚠️  RapidVid subtitle parse error:', e.message);
+                    }
+                }
+            }
 
+            // Extract video URL - Method 1: file: "..." with hex encoding (Kotlin method)
+            let decoded = null;
+            const fileMatch = body.match(/file:\s*"([^"]+)",/);
+            if (fileMatch && fileMatch[1].includes('\\x')) {
+                const extractedValue = fileMatch[1];
+                const hexParts = extractedValue.split('\\x').filter(x => x.length > 0);
+                const bytes = hexParts.map(hex => parseInt(hex, 16));
+                decoded = String.fromCharCode(...bytes);
+                console.log(`✅ RapidVid: Method 1 (hex decode) success`);
+            }
+
+            // Extract video URL - Method 2: Unpacking eval(function...) (Kotlin method)
+            if (!decoded || !decoded.startsWith('http')) {
+                const evalMatch = body.match(/\};\s*(eval\(function[\s\S]*?)var played = \d+;/);
+                if (evalMatch) {
+                    let jwSetup = getAndUnpack(getAndUnpack(evalMatch[1]));
+                    jwSetup = jwSetup.replace(/\\\\/g, '\\');
+
+                    const fileMatch2 = jwSetup.match(/file:"([^"]+)","label/);
+                    if (fileMatch2) {
+                        const extractedValue = fileMatch2[1].replace(/\\x/g, '');
+                        const bytes = extractedValue.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || [];
+                        decoded = String.fromCharCode(...bytes);
+                        console.log(`✅ RapidVid: Method 2 (unpacked hex) success`);
+                    }
+                }
+            }
+
+            // Extract video URL - Method 3: av() function (alternative method)
+            if (!decoded || !decoded.startsWith('http')) {
+                const scriptMatch = body.match(/jwSetup\.sources\s*=\s*\[.*?av\('([^']+)'\)/s);
+                if (scriptMatch) {
+                    const encodedValue = scriptMatch[1];
+                    decoded = decodeRapidVid(encodedValue);
+                    console.log(`✅ RapidVid: Method 3 (av decode) success`);
+                }
+            }
+
+            if (decoded && decoded.startsWith('http')) {
                 streams.push({
                     name: streamName,
                     title: `${streamName}`,
-                    url: m3u8Url,
+                    url: decoded,
                     type: 'm3u8',
                     subtitles: subtitles.length > 0 ? subtitles : undefined,
                     behaviorHints: {
@@ -596,7 +663,7 @@ async function processFetchResult(fetchResult) {
                 });
                 console.log(`✅ RapidVid: URL extracted, ${subtitles.length} subtitle(s)`);
             } else {
-                console.log('⚠️  RapidVid: No av() match found in body');
+                console.log('⚠️  RapidVid: No valid URL extracted');
             }
         } catch (e) {
             console.log('⚠️  RapidVid extraction error:', e.message);
@@ -616,6 +683,7 @@ async function processFetchResult(fetchResult) {
             // Extract subtitles
             const captionRegex = /captions","file":"([^"]+)","label":"([^"]+)"/g;
             let captionMatch;
+            const subUrls = new Set();
             while ((captionMatch = captionRegex.exec(body)) !== null) {
                 const subUrl = captionMatch[1].replace(/\\/g, '');
                 const lang = captionMatch[2]
@@ -623,57 +691,44 @@ async function processFetchResult(fetchResult) {
                     .replace(/\\u0130/g, 'İ')
                     .replace(/\\u00fc/g, 'ü')
                     .replace(/\\u00e7/g, 'ç');
-                subtitles.push({ lang, url: subUrl });
+
+                if (!subUrls.has(subUrl)) {
+                    subUrls.add(subUrl);
+                    subtitles.push({ lang, url: subUrl });
+                }
             }
 
-            // Method 1: Hex encoded file (\\x formatında)
+            // Method 1: Hex encoded file (\\x formatında) - Direct file: "..." pattern
+            let decoded = null;
             let fileMatch = body.match(/file:\s*"([^"]+)"/);
             if (fileMatch && fileMatch[1].includes('\\x')) {
                 const extractedValue = fileMatch[1];
                 const hexParts = extractedValue.split('\\x').filter(x => x.length > 0);
                 const bytes = hexParts.map(hex => parseInt(hex, 16));
-                const decoded = String.fromCharCode(...bytes);
+                decoded = String.fromCharCode(...bytes);
 
                 if (decoded && decoded.startsWith('http')) {
-                    streams.push({
-                        name: streamName,
-                        title: `${streamName}`,
-                        url: decoded,
-                        type: 'm3u8',
-                        subtitles: subtitles.length > 0 ? subtitles : undefined,
-                        behaviorHints: { notWebReady: false }
-                    });
-                    console.log(`✅ VidMoxy: Method 1 success, ${subtitles.length} subtitle(s)`);
+                    console.log(`✅ VidMoxy: Method 1 (direct hex) success, ${subtitles.length} subtitle(s)`);
                 }
-            } else {
-                // Method 2: Packed JS
+            }
+
+            // Method 2: Packed JS with eval(function...)
+            if (!decoded || !decoded.startsWith('http')) {
                 const evaljwMatch = body.match(/\};\s*(eval\(function[\s\S]*?)var played = \d+;/);
                 if (evaljwMatch) {
                     let jwSetup = getAndUnpack(getAndUnpack(evaljwMatch[1]));
                     jwSetup = jwSetup.replace(/\\\\/g, '\\');
 
-                    const fileMatch2 = jwSetup.match(/file:"([^"]+)"/);
+                    const fileMatch2 = jwSetup.match(/file:"([^"]+)","label/);
                     if (fileMatch2) {
                         const extractedValue = fileMatch2[1];
-                        // \\x pattern'ini ayır
-                        const hexParts = extractedValue.split('\\x').filter(x => x.length > 0);
-                        const bytes = hexParts.map(hex => {
-                            // İlk iki karakter hex değeri
-                            const hexValue = hex.substring(0, 2);
-                            return parseInt(hexValue, 16);
-                        });
-                        const decoded = String.fromCharCode(...bytes);
+                        // Remove \\x prefix and parse hex
+                        const cleanValue = extractedValue.replace(/\\x/g, '');
+                        const bytes = cleanValue.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || [];
+                        decoded = String.fromCharCode(...bytes);
 
                         if (decoded && decoded.startsWith('http')) {
-                            streams.push({
-                                name: streamName,
-                                title: `${streamName}`,
-                                url: decoded,
-                                type: 'm3u8',
-                                subtitles: subtitles.length > 0 ? subtitles : undefined,
-                                behaviorHints: { notWebReady: false }
-                            });
-                            console.log(`✅ VidMoxy: Method 2 success, ${subtitles.length} subtitle(s)`);
+                            console.log(`✅ VidMoxy: Method 2 (unpacked hex) success, ${subtitles.length} subtitle(s)`);
                         }
                     } else {
                         console.log('⚠️  VidMoxy: No file match in unpacked JS');
@@ -681,6 +736,20 @@ async function processFetchResult(fetchResult) {
                 } else {
                     console.log('⚠️  VidMoxy: No packed JS found');
                 }
+            }
+
+            if (decoded && decoded.startsWith('http')) {
+                streams.push({
+                    name: streamName,
+                    title: `${streamName}`,
+                    url: decoded,
+                    type: 'm3u8',
+                    subtitles: subtitles.length > 0 ? subtitles : undefined,
+                    behaviorHints: { notWebReady: false }
+                });
+                console.log(`✅ VidMoxy: Final URL extracted with ${subtitles.length} subtitle(s)`);
+            } else {
+                console.log('⚠️  VidMoxy: No valid URL extracted');
             }
         } catch (e) {
             console.log('⚠️  VidMoxy extraction error:', e.message);
@@ -701,20 +770,20 @@ async function processFetchResult(fetchResult) {
                 const videoUrl = fileMatch[1];
                 streams.push({
                     name: streamName,
-                    title: `${streamName}`,
+                    title: streamName,
                     url: videoUrl,
                     type: 'm3u8',
                     behaviorHints: { notWebReady: false }
                 });
-                console.log(`✅ TurboImgz: URL extracted - ${videoUrl.substring(0, 60)}...`);
+                console.log(`✅ ${streamName}: URL extracted - ${videoUrl.substring(0, 60)}...`);
             } else {
-                console.log('⚠️  TurboImgz: No file match found');
+                console.log(`⚠️  ${streamName}: No file match found`);
             }
         } catch (e) {
-            console.log('⚠️  TurboImgz extraction error:', e.message);
+            console.log(`⚠️  ${streamName} extraction error:`, e.message);
         }
 
-        console.log(`✅ TurboImgz extracted: ${streams.length} stream(s)`);
+        console.log(`✅ ${streamName} extracted: ${streams.length} stream(s)`);
         return { streams };
     }
 

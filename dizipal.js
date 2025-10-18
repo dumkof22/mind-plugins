@@ -1,5 +1,37 @@
 const cheerio = require('cheerio');
 
+// ============ BOT KORUMA İYİLEŞTİRMELERİ ============
+// DiziPal sitesi CloudFlare olmadan da bot detection yapıyor!
+// Muhtemelen TLS/HTTP2 fingerprinting veya JS challenges kullanıyor.
+//
+// ÇÖZÜM: Flutter tarafında WebView kullanarak cookie'leri al
+// 
+// Flutter'da yapılması gerekenler:
+// 1. flutter_inappwebview ile gizli bir WebView aç
+// 2. BASE_URL'yi yükle (örn: https://dizipal1210.com)
+// 3. Cookie'leri al (özellikle session cookies)
+// 4. Bu cookie'leri sonraki tüm HTTP isteklerinde kullan
+// 5. User-Agent'ı WebView ile aynı tut
+//
+// JavaScript iyileştirmeleri:
+// - Enhanced browser-like headers
+// - Realistic timing patterns
+// - Sequential request ordering
+// - Cookie persistence hints
+// =================================================
+
+// ============ GÜVENLİK NOTU ============
+// Bu plugin Flutter tarafından sandbox'lanmış bir ortamda çalışır.
+// Güvenlik kontrolleri:
+// - Sadece HTTP/HTTPS URL'lerine istek atabilir
+// - Private IP'lere (127.0.0.1, 192.168.x.x) istek atılamaz
+// - Sadece GET/POST metodları kullanılabilir
+// - Tek istekte maksimum 20 instruction döndürülebilir
+// - Response boyutu maksimum 50 MB
+// - Rate limit: Dakikada 100 istek
+// Detaylar için: SECURITY_MEASURES.md
+// =======================================
+
 // Manifest tanımı
 const manifest = {
     id: 'community.dizipal',
@@ -108,7 +140,50 @@ const manifest = {
     idPrefixes: ['dizipal']
 };
 
-const BASE_URL = 'https://dizipal1210.com';
+const BASE_URL = 'https://dizipal1212.com';
+
+// ============ BOT DETECTION PREVENTION ============
+// Delay helper function
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Enhanced headers with more browser-like fingerprint
+function getEnhancedHeaders(referer = BASE_URL, isAjax = false, includeCookieHint = true) {
+    const headers = {
+        'Accept': isAjax ? 'application/json, text/javascript, */*; q=0.01' : 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+        // Accept-Encoding kaldırıldı - Flutter HTTP client compressed response'u decode edemiyor
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+        'Sec-Ch-Ua': '"Chromium";v="134", "Not)A;Brand";v="24", "Google Chrome";v="134"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': isAjax ? 'empty' : 'document',
+        'Sec-Fetch-Mode': isAjax ? 'cors' : 'navigate',
+        'Sec-Fetch-Site': 'same-origin',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0',
+        'Priority': 'u=0, i'
+    };
+
+    if (referer) {
+        headers['Referer'] = referer;
+    }
+
+    if (isAjax) {
+        headers['X-Requested-With'] = 'XMLHttpRequest';
+        headers['Origin'] = BASE_URL;
+    }
+
+    // IMPORTANT: Flutter should inject cookies from WebView here
+    // This is a placeholder - Flutter client must handle cookie injection
+    if (includeCookieHint) {
+        headers['__COOKIE_HINT__'] = 'FLUTTER_INJECT_WEBVIEW_COOKIES';
+    }
+
+    return headers;
+}
 
 // Katalog URL'lerini dinamik olarak al
 function getCatalogUrls() {
@@ -142,18 +217,16 @@ async function handleCatalog(args) {
     // Search catalogs
     if ((catalogId === 'dizipal_search' || catalogId === 'dizipal_search_series') && searchQuery) {
         const requestId = `dizipal-search-${catalogId}-${Date.now()}-${randomId}`;
+        const headers = getEnhancedHeaders(BASE_URL, true);
+        headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+
         return {
             instructions: [{
                 requestId,
                 purpose: 'catalog-search',
                 url: `${BASE_URL}/api/search-autocomplete`,
                 method: 'POST',
-                headers: {
-                    'Accept': 'application/json, text/javascript, */*; q=0.01',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-                },
+                headers: headers,
                 body: `query=${encodeURIComponent(searchQuery)}`,
                 metadata: { catalogId }
             }]
@@ -176,11 +249,7 @@ async function handleCatalog(args) {
             purpose: 'catalog',
             url: url,
             method: 'GET',
-            headers: {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
-                'Referer': BASE_URL
-            },
+            headers: getEnhancedHeaders(BASE_URL, false),
             metadata: { catalogId }
         }]
     };
@@ -200,11 +269,7 @@ async function handleMeta(args) {
             purpose: 'meta',
             url: url,
             method: 'GET',
-            headers: {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': BASE_URL
-            }
+            headers: getEnhancedHeaders(BASE_URL, false)
         }]
     };
 }
@@ -223,11 +288,7 @@ async function handleStream(args) {
             purpose: 'stream',
             url: url,
             method: 'GET',
-            headers: {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Referer': BASE_URL
-            }
+            headers: getEnhancedHeaders(BASE_URL, false)
         }]
     };
 }
@@ -298,6 +359,58 @@ async function processFetchResult(fetchResult) {
 
     console.log(`\n⚙️ [DiziPal Process] Purpose: ${purpose}`);
     console.log(`   URL: ${url?.substring(0, 80)}...`);
+
+    // ========== BOT DETECTION & BLOCKING DETECTION ==========
+    if (body && typeof body === 'string') {
+        // CloudFlare challenge detection
+        if (body.includes('Just a moment') ||
+            body.includes('cf-browser-verification') ||
+            body.includes('Checking your browser') ||
+            body.includes('DDoS protection by Cloudflare') ||
+            body.includes('cf_clearance')) {
+            console.log('⚠️ CloudFlare challenge detected!');
+            console.log('   Flutter tarafında WebView ile cookie alınmalı.');
+
+            // Return empty result instead of error
+            if (purpose === 'catalog' || purpose === 'catalog-search') {
+                return { metas: [] };
+            }
+            if (purpose === 'meta') {
+                return { meta: null };
+            }
+            if (purpose === 'stream' || purpose === 'iframe-stream' || purpose === 'series-player-stream') {
+                return { streams: [] };
+            }
+        }
+
+        // Check for other blocking pages
+        if (body.includes('Access denied') ||
+            body.includes('403 Forbidden') ||
+            body.includes('Bot detected') ||
+            body.includes('Please enable JavaScript') ||
+            body.length < 500) { // Suspiciously small response
+            console.log('⚠️ Bot detection or access denied!');
+            console.log(`   Response size: ${body.length} bytes`);
+            console.log('   Olası sebepler:');
+            console.log('   1. TLS/HTTP2 fingerprinting farklı');
+            console.log('   2. Cookie/Session eksik');
+            console.log('   3. JavaScript challenge çözülmemiş');
+            console.log('   4. Behavior pattern (timing) şüpheli');
+            console.log('');
+            console.log('   ÇÖZÜM: Flutter WebView kullanarak cookie al!');
+
+            // Return empty but don't crash
+            if (purpose === 'catalog' || purpose === 'catalog-search') {
+                return { metas: [] };
+            }
+            if (purpose === 'meta') {
+                return { meta: null };
+            }
+            if (purpose === 'stream' || purpose === 'iframe-stream' || purpose === 'series-player-stream') {
+                return { streams: [] };
+            }
+        }
+    }
 
     if (purpose === 'catalog-search') {
         // Search results are JSON
@@ -569,16 +682,16 @@ async function processFetchResult(fetchResult) {
                 const randomId = Math.random().toString(36).substring(2, 10);
                 const requestId = `dizipal-iframe-extract-${Date.now()}-${randomId}`;
 
+                const iframeHeaders = getEnhancedHeaders(url, false);
+                iframeHeaders['Sec-Fetch-Dest'] = 'iframe';
+                iframeHeaders['Sec-Fetch-Site'] = 'cross-site';
+
                 instructions.push({
                     requestId,
                     purpose: 'iframe-stream',
                     url: iframeUrl,
                     method: 'GET',
-                    headers: {
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'Referer': url
-                    },
+                    headers: iframeHeaders,
                     metadata: { streamName: `DiziPal Server ${i + 1}` }
                 });
             }
@@ -629,17 +742,17 @@ async function processFetchResult(fetchResult) {
 
             const randomId = Math.random().toString(36).substring(2, 10);
             const requestId = `dizipal-series-player-${Date.now()}-${randomId}`;
+
+            const seriesPlayerHeaders = getEnhancedHeaders(url, true);
+            seriesPlayerHeaders['Accept'] = '*/*';
+
             return {
                 instructions: [{
                     requestId,
                     purpose: 'series-player-stream',
                     url: seriesPlayerUrl,
                     method: 'GET',
-                    headers: {
-                        'Accept': '*/*',
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'Referer': url
-                    },
+                    headers: seriesPlayerHeaders,
                     metadata: {
                         originalUrl: url,
                         streamName: 'DiziPal Series Player'
