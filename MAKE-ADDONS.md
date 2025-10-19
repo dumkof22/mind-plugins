@@ -1,4 +1,4 @@
-# How to Create Stremio Addons
+# How to Create Mind Addons
 
 ## Table of Contents
 - [Overview](#overview)
@@ -1092,4 +1092,5 @@ module.exports = {
 5. Test each function independently before integration
 
 Happy coding! 🚀
+
 
