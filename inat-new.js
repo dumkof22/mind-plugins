@@ -18,7 +18,7 @@ const manifest = {
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie', 'series', 'tv'],
     catalogs: [
-        // TV lists - Her katalog için extra parametresi eklendi
+        // TV lists
         { type: 'tv', id: 'spor', name: '📺 Spor Kanalları', extra: [] },
         { type: 'tv', id: 'list1', name: '📺 Kanallar Liste 1', extra: [] },
         { type: 'tv', id: 'list2', name: '📺 Kanallar Liste 2', extra: [] },
@@ -47,7 +47,7 @@ const manifest = {
         { type: 'movie', id: 'yerli-film', name: '🎬 Yerli Filmler', extra: [] },
         { type: 'movie', id: '4k-film', name: '🎬 4K Film İzle', extra: [] },
 
-        // SEARCH katalogu (Stremio aramaları için)
+        // SEARCH katalogu
         { type: 'movie', id: 'inat_search', name: '🔍 Arama', extra: [{ name: 'search', isRequired: true }] }
     ],
     idPrefixes: ['inatbox']
@@ -56,28 +56,34 @@ const manifest = {
 // --- URL MAP ---
 const catalogUrls = {
     spor: 'https://boxbc.icu/CDN/001_STR/boxbc.icu/spor_v2.php',
-    list1: `https://diziboox.sbs/CDN/001/dizibox/tv/list1.php`,
-    list2: `https://diziboox.sbs/CDN/001/dizibox/tv/list2.php`,
-    list3: `https://diziboox.sbs/CDN/001/dizibox/tv/list3.php`,
-    sinema: `https://diziboox.sbs/CDN/001/dizibox/tv/sinema.php`,
-    belgesel: `https://diziboox.sbs/CDN/001/dizibox/tv/belgesel.php`,
-    ulusal: `https://diziboox.sbs/CDN/001/dizibox/tv/ulusal.php`,
-    haber: `https://diziboox.sbs/CDN/001/dizibox/tv/haber.php`,
-    eba: `https://diziboox.sbs/CDN/001/dizibox/tv/eba.php`,
-    cocuk: `https://diziboox.sbs/CDN/001/dizibox/tv/cocuk.php`,
-    dini: `https://diziboox.sbs/CDN/001/dizibox/tv/dini.php`,
-    exxen: `https://diziboox.sbs/CDN/001/dizibox/ex/index.php`,
-    gain: `https://diziboox.sbs/CDN/001/dizibox/ga/index.php`,
-    disney: `https://diziboox.sbs/CDN/001/dizibox/dsny/index.php`,
-    amazon: `https://diziboox.sbs/CDN/001/dizibox/amz/index.php`,
-    hbo: `https://diziboox.sbs/CDN/001/dizibox/hb/index.php`,
-    tabii: `https://diziboox.sbs/CDN/001/dizibox/tbi/index.php`,
-    mubi: `https://diziboox.sbs/CDN/001/dizibox/film/mubi.php`,
-    tod: `https://boxbc.icu/CDN/001_STR/boxbc.icu/ccc/index.php`,
-    'yabanci-dizi': `https://diziboox.sbs/CDN/001/dizibox/yabanci-dizi/index.php`,
-    'yerli-dizi': `https://diziboox.sbs/CDN/001/dizibox/yerli-dizi/index.php`,
-    'yerli-film': `https://diziboox.sbs/CDN/001/dizibox/film/yerli-filmler.php`,
-    '4k-film': `https://diziboox.sbs/CDN/001/dizibox/film/4k-film-exo.php`
+    
+    // TV Kanalları
+    list1: 'https://diziboox.sbs/CDN/001/dizibox/tv/list1.php',
+    list2: 'https://diziboox.sbs/CDN/001/dizibox/tv/list2.php',
+    list3: 'https://diziboox.sbs/CDN/001/dizibox/tv/list3.php',
+    sinema: 'https://diziboox.sbs/CDN/001/dizibox/tv/sinema.php',
+    belgesel: 'https://diziboox.sbs/CDN/001/dizibox/tv/belgesel.php',
+    ulusal: 'https://diziboox.sbs/CDN/001/dizibox/tv/ulusal.php',
+    haber: 'https://diziboox.sbs/CDN/001/dizibox/tv/haber.php',
+    eba: 'https://diziboox.sbs/CDN/001/dizibox/tv/eba.php',
+    cocuk: 'https://diziboox.sbs/CDN/001/dizibox/tv/cocuk.php',
+    dini: 'https://diziboox.sbs/CDN/001/dizibox/tv/dini.php',
+    
+    // Streaming Servisleri
+    exxen: 'https://diziboox.sbs/CDN/001/dizibox/ex/index.php',
+    gain: 'https://diziboox.sbs/CDN/001/dizibox/ga/index.php',
+    disney: 'https://diziboox.sbs/CDN/001/dizibox/dsny/index.php',
+    amazon: 'https://diziboox.sbs/CDN/001/dizibox/amz/index.php',
+    hbo: 'https://diziboox.sbs/CDN/001/dizibox/hb/index.php',
+    tabii: 'https://diziboox.sbs/CDN/001/dizibox/tbi/index.php',
+    mubi: 'https://diziboox.sbs/CDN/001/dizibox/film/mubi.php',
+    tod: 'https://boxbc.icu/CDN/001_STR/boxbc.icu/ccc/index.php',
+    
+    // Dizi ve Filmler
+    'yabanci-dizi': 'https://diziboox.sbs/CDN/001/dizibox/yabanci-dizi/index.php',
+    'yerli-dizi': 'https://diziboox.sbs/CDN/001/dizibox/yerli-dizi/index.php',
+    'yerli-film': 'https://diziboox.sbs/CDN/001/dizibox/film/yerli-filmler.php',
+    '4k-film': 'https://diziboox.sbs/CDN/001/dizibox/film/4k-film-exo.php'
 };
 
 // --- HELPERS ---
@@ -1088,3 +1094,4 @@ module.exports = {
     handleStream,
     processFetchResult
 };
+
