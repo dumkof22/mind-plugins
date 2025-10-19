@@ -216,51 +216,22 @@ async function handleCatalog(args) {
 async function handleMeta(args) {
     const itemData = Buffer.from(args.id.replace('inatbox:', ''), 'base64').toString('utf8');
     let item = null;
-    try {
-        item = JSON.parse(itemData);
-    } catch (e) {
-        safeLog('⚠️ meta parse error', e.message);
-        return { instructions: [] };
-    }
+    try { item = JSON.parse(itemData); } catch (e) { safeLog('⚠️ meta parse error', e.message); }
 
-    if (!item) {
-        safeLog('❌ [InatBox Meta] Item is null');
-        return { instructions: [] };
-    }
+    if (!item) return { instructions: [] };
 
-    safeLog('📺 [InatBox Meta] Processing:', item.diziName || item.chName);
-    safeLog('   - Type: ' + (item.diziType || item.chType));
+    safeLog('📺 [InatBox Meta] for', item.diziName || item.chName);
 
-    // ===== FİLM (diziType === 'film') - Direkt meta, backend isteği YOK =====
-    if (item.diziType === 'film') {
-        safeLog('🎬 [InatBox Meta] FİLM DETECTED - Direkt meta döndürülüyor');
-        safeLog('   - Film Adı: ' + item.diziName);
-        safeLog('   - Film Poster: ' + (item.diziImg ? 'VAR' : 'YOK'));
+    const body = buildRequestBody();
 
-        return {
-            instructions: [],
-            metadata: {
-                originalItem: item,
-                isFilm: true,
-                skipBackendRequest: true
-            }
-        };
-    }
-
-    // ===== DİZİ (diziType === 'dizi') - Backend'den sezon bilgisi çek =====
-    if (item.diziType === 'dizi' && item.diziUrl) {
-        safeLog('📺 [InatBox Meta] DİZİ DETECTED - Backend\'den sezonlar çekiliyor');
-        safeLog('   - Dizi Adı: ' + item.diziName);
-        safeLog('   - Backend URL: ' + item.diziUrl.substring(0, 80) + '...');
-
-        const body = buildRequestBody();
+    // 🎬 Dizi veya film detay isteği
+    if (item.diziType && item.diziUrl) {
         const requestId = `inat-meta-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
         const urlObj = new URL(item.diziUrl);
-
         return {
             instructions: [{
                 requestId,
-                purpose: 'meta_series_seasons',
+                purpose: item.diziType === 'dizi' ? 'meta_series_seasons' : 'meta',
                 url: item.diziUrl,
                 method: 'POST',
                 headers: {
@@ -279,31 +250,15 @@ async function handleMeta(args) {
         };
     }
 
-    // ===== TV KANAL (chUrl + chType) - Direkt meta, backend isteği YOK =====
+    // 📺 Kanal için direkt meta döndür (instruction gerekmez, metadata kullan)
     if (item.chUrl && item.chType) {
-        safeLog('📺 [InatBox Meta] TV KANAL DETECTED - Direkt meta döndürülüyor');
-        safeLog('   - Kanal Adı: ' + item.chName);
-        safeLog('   - Kanal Tipi: ' + item.chType);
-
-        return {
-            instructions: [],
-            metadata: {
-                originalItem: item,
-                isChannel: true,
-                skipBackendRequest: true
-            }
-        };
+        // TV kanalları için backend isteği yapmaya gerek yok, direkt meta döndür
+        return { instructions: [], metadata: { originalItem: item, isChannel: true } };
     }
 
-    // ===== BİLİNMEYEN TİP =====
-    safeLog('⚠️ [InatBox Meta] BİLİNMEYEN TİP - direkt metadata döndürülüyor');
-    safeLog('   - Item keys: ' + Object.keys(item).join(', '));
-
-    return {
-        instructions: [],
-        metadata: { originalItem: item }
-    };
+    return { instructions: [], metadata: { originalItem: item } };
 }
+
 
 async function handleStream(args) {
     const itemData = Buffer.from(args.id.replace('inatbox:', ''), 'base64').toString('utf8');
@@ -789,6 +744,27 @@ async function processFetchResult(fetchResult) {
                     url: videoUrl,
                     name: item.chName || 'Yandex Disk',
                     title: item.chName || 'Yandex Disk',
+                    behaviorHints: {
+                        notWebReady: false,
+                        httpHeaders: [{ 'Referer': '' }]
+                    },
+                    addonName: 'inatbox',
+                    addonManifestUrl
+                });
+            }
+        }
+        // Dzen CDN Extractor - Kotlin: DzenExtractor.kt line 6-42
+        else if (sourceUrl.includes('cdn.dzen.ru')) {
+            safeLog('🔍 [Extractor] Using Dzen CDN extractor');
+            const type = sourceUrl.includes('.m3u8') ? 'm3u8' : sourceUrl.includes('.mpd') ? 'dash' : null;
+
+            if (type) {
+                safeLog(`✅ [Dzen CDN] Found ${type.toUpperCase()}: ${sourceUrl.substring(0, 80)}...`);
+
+                streams.push({
+                    url: sourceUrl,
+                    name: item.chName || 'Dzen CDN',
+                    title: item.chName || 'Dzen CDN',
                     behaviorHints: {
                         notWebReady: false,
                         httpHeaders: [{ 'Referer': '' }]

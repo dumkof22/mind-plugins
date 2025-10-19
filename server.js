@@ -37,6 +37,7 @@ const addonModules = {
     'inatbox': require('./inat-new.js'),
     'dizipal': require('./dizipal.js'),
     'selcuksports': require('./selcuk-new.js'),
+    'selcuksportshd': require('./sporcafe.js'),
 
     // Yeni Türkçe içerik eklentileri
     'animecix': require('./animecix-addon.js'),
@@ -74,7 +75,7 @@ const addonCategories = {
     '🎨 Çizgi Film': ['cizgimax'],
     '📚 Belgesel': ['belgeselx'],
     '📺 Canlı TV': ['inatbox', 'canlitv'],
-    '⚽ Spor': ['selcuksports']
+    '⚽ Spor': ['selcuksports', 'selcuksportshd']
 };
 
 Object.entries(addonCategories).forEach(([category, ids]) => {
@@ -118,7 +119,7 @@ app.get('/api/addons/categories', (req, res) => {
         'Çizgi Film': ['cizgimax'],
         'Belgesel': ['belgeselx'],
         'Canlı TV': ['inatbox', 'canlitv'],
-        'Spor': ['selcuksports'],
+        'Spor': ['selcuksports', 'selcuksportshd'],
         'Dizi': ['dizipal']
     };
 

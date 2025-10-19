@@ -452,16 +452,24 @@ async function processFetchResult(fetchResult) {
         console.log(`   ${seasonLinks.length} sezon linki bulundu, bölümler için instruction oluşturuluyor...`);
 
         if (seasonLinks.length > 0) {
+            // Ana sayfada bölüm varsa ve sezon sayısı çoksa, sadece ilk 3 sezonu al (hız optimizasyonu)
+            const maxSeasons = (videos.length > 0 && seasonLinks.length > 5) ? 3 : seasonLinks.length;
+            const limitedSeasonLinks = seasonLinks.slice(0, maxSeasons);
+
+            if (maxSeasons < seasonLinks.length) {
+                console.log(`   ⚡ Performans için sadece ilk ${maxSeasons} sezon alınacak`);
+            }
+
             // Sezon sayfalarını fetch etmek için instructions döndür
             const instructions = [];
-            for (let i = 0; i < seasonLinks.length; i++) {
+            for (let i = 0; i < limitedSeasonLinks.length; i++) {
                 const randomId = Math.random().toString(36).substring(2, 10);
                 const requestId = `dizibox-season-${Date.now()}-${randomId}-${i}`;
 
                 instructions.push({
                     requestId,
                     purpose: 'season-episodes',
-                    url: seasonLinks[i],
+                    url: limitedSeasonLinks[i],
                     method: 'GET',
                     headers: getDefaultHeaders(url),
                     metadata: {
@@ -711,24 +719,27 @@ async function processFetchResult(fetchResult) {
         if (url.includes('/player/moly/moly.php')) {
             console.log('   🔑 Moly player tespit edildi');
 
-            // Base64 decode dene
-            const atobMatch = body.match(/unescape\("(.*)"\)/);
+            // Base64 decode dene (Kotlin: unescape sonrası atob)
+            const atobMatch = body.match(/unescape\(["'](.+?)["']\)/);
             if (atobMatch) {
                 try {
+                    // URI decode et
                     const decodedUri = decodeURIComponent(atobMatch[1]);
+                    // Base64 decode et
                     const decodedBase64 = Buffer.from(decodedUri, 'base64').toString('utf-8');
                     const decoded$ = cheerio.load(decodedBase64);
 
                     const subIframe = decoded$('div#Player iframe').attr('src');
                     if (subIframe) {
-                        console.log('   ✅ Moly decoded, sub-iframe bulundu');
+                        const fullSubIframe = subIframe.startsWith('http') ? subIframe : `${BASE_URL}${subIframe}`;
+                        console.log(`   ✅ Moly decoded, sub-iframe: ${fullSubIframe.substring(0, 80)}...`);
 
                         const randomId = Math.random().toString(36).substring(2, 10);
                         return {
                             instructions: [{
                                 requestId: `dizibox-moly-sub-${Date.now()}-${randomId}`,
                                 purpose: 'iframe-stream',
-                                url: subIframe,
+                                url: fullSubIframe,
                                 method: 'GET',
                                 headers: getDefaultHeaders(url),
                                 metadata: { streamName }
@@ -736,19 +747,22 @@ async function processFetchResult(fetchResult) {
                         };
                     }
                 } catch (e) {
-                    console.log('   ❌ Moly decode hatası:', e.message);
+                    console.log(`   ⚠️ Moly decode hatası: ${e.message}`);
                 }
             }
 
             // Decode olmadan iframe bul
             const subIframe = $('div#Player iframe').attr('src');
             if (subIframe) {
+                const fullSubIframe = subIframe.startsWith('http') ? subIframe : `${BASE_URL}${subIframe}`;
+                console.log(`   ✅ Moly direct iframe: ${fullSubIframe.substring(0, 80)}...`);
+
                 const randomId = Math.random().toString(36).substring(2, 10);
                 return {
                     instructions: [{
                         requestId: `dizibox-moly-direct-${Date.now()}-${randomId}`,
                         purpose: 'iframe-stream',
-                        url: subIframe,
+                        url: fullSubIframe,
                         method: 'GET',
                         headers: getDefaultHeaders(url),
                         metadata: { streamName }
@@ -761,24 +775,27 @@ async function processFetchResult(fetchResult) {
         if (url.includes('/player/haydi.php')) {
             console.log('   🔑 Haydi player tespit edildi');
 
-            // Base64 decode dene
-            const atobMatch = body.match(/unescape\("(.*)"\)/);
+            // Base64 decode dene (Kotlin: unescape sonrası atob)
+            const atobMatch = body.match(/unescape\(["'](.+?)["']\)/);
             if (atobMatch) {
                 try {
+                    // URI decode et
                     const decodedUri = decodeURIComponent(atobMatch[1]);
+                    // Base64 decode et
                     const decodedBase64 = Buffer.from(decodedUri, 'base64').toString('utf-8');
                     const decoded$ = cheerio.load(decodedBase64);
 
                     const subIframe = decoded$('div#Player iframe').attr('src');
                     if (subIframe) {
-                        console.log('   ✅ Haydi decoded, sub-iframe bulundu');
+                        const fullSubIframe = subIframe.startsWith('http') ? subIframe : `${BASE_URL}${subIframe}`;
+                        console.log(`   ✅ Haydi decoded, sub-iframe: ${fullSubIframe.substring(0, 80)}...`);
 
                         const randomId = Math.random().toString(36).substring(2, 10);
                         return {
                             instructions: [{
                                 requestId: `dizibox-haydi-sub-${Date.now()}-${randomId}`,
                                 purpose: 'iframe-stream',
-                                url: subIframe,
+                                url: fullSubIframe,
                                 method: 'GET',
                                 headers: getDefaultHeaders(url),
                                 metadata: { streamName }
@@ -786,19 +803,22 @@ async function processFetchResult(fetchResult) {
                         };
                     }
                 } catch (e) {
-                    console.log('   ❌ Haydi decode hatası:', e.message);
+                    console.log(`   ⚠️ Haydi decode hatası: ${e.message}`);
                 }
             }
 
             // Decode olmadan iframe bul
             const subIframe = $('div#Player iframe').attr('src');
             if (subIframe) {
+                const fullSubIframe = subIframe.startsWith('http') ? subIframe : `${BASE_URL}${subIframe}`;
+                console.log(`   ✅ Haydi direct iframe: ${fullSubIframe.substring(0, 80)}...`);
+
                 const randomId = Math.random().toString(36).substring(2, 10);
                 return {
                     instructions: [{
                         requestId: `dizibox-haydi-direct-${Date.now()}-${randomId}`,
                         purpose: 'iframe-stream',
-                        url: subIframe,
+                        url: fullSubIframe,
                         method: 'GET',
                         headers: getDefaultHeaders(url),
                         metadata: { streamName }
@@ -853,65 +873,35 @@ async function processFetchResult(fetchResult) {
                 const fileMatch = decrypted.match(/file:\s*['"](.+?)['"]/);
 
                 if (fileMatch) {
-                    let m3uUrl = fileMatch[1];
-                    console.log(`   ✅ URL bulundu: ${m3uUrl.substring(0, 80)}...`);
+                    let embedUrl = fileMatch[1];
+                    console.log(`   ✅ Embed URL bulundu: ${embedUrl.substring(0, 80)}...`);
 
-                    // Eğer URL direkt M3U8 ise stream olarak döndür (Kotlin: getQualityFromName("4k"))
-                    if (m3uUrl.includes('.m3u8') || m3uUrl.includes('playlist.m3u8')) {
-                        streams.push({
-                            name: `${streamName} 📺 4K`,
-                            title: `${streamName} 📺 4K`,
-                            url: m3uUrl,
-                            type: 'm3u8',
-                            behaviorHints: {
-                                notWebReady: false,
-                                bingeGroup: 'dizibox-king',
-                                proxyHeaders: {
-                                    request: {
-                                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                                        'Referer': m3uUrl,
-                                        'Origin': BASE_URL
-                                    }
-                                }
-                            }
-                        });
+                    // Kotlin kodundaki gibi: embedUrl'yi sheila URL'sine çevir
+                    // Eğer zaten /embed/sheila/ içermiyorsa, /embed/ yerine /embed/sheila/ koy
+                    let sheilaUrl;
+                    if (embedUrl.includes('/embed/sheila/')) {
+                        sheilaUrl = embedUrl;
+                        console.log(`   ℹ️ URL zaten sheila formatında`);
+                    } else {
+                        sheilaUrl = embedUrl.replace('/embed/', '/embed/sheila/');
+                        console.log(`   🔄 Sheila URL'ye dönüştürülüyor: ${sheilaUrl.substring(0, 80)}...`);
                     }
-                    // Eğer URL bir embed/player page ise, bir kez daha fetch et
-                    else if (m3uUrl.includes('/embed/') || m3uUrl.includes('/player/')) {
-                        console.log('   ℹ️ URL bir player page gibi görünüyor, tekrar fetch ediliyor...');
 
-                        const randomId = Math.random().toString(36).substring(2, 10);
-                        return {
-                            instructions: [{
-                                requestId: `dizibox-king-player-${Date.now()}-${randomId}`,
-                                purpose: 'iframe-stream',
-                                url: m3uUrl,
-                                method: 'GET',
-                                headers: getDefaultHeaders(url),
-                                metadata: { streamName }
-                            }]
-                        };
-                    }
-                    // Diğer durumlarda URL'yi direkt stream olarak döndür
-                    else {
-                        streams.push({
-                            name: `${streamName} 📺`,
-                            title: `${streamName} 📺`,
-                            url: m3uUrl,
-                            type: 'm3u8',
-                            behaviorHints: {
-                                notWebReady: false,
-                                bingeGroup: 'dizibox-king',
-                                proxyHeaders: {
-                                    request: {
-                                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                                        'Referer': m3uUrl,
-                                        'Origin': BASE_URL
-                                    }
-                                }
-                            }
-                        });
-                    }
+                    // Sheila URL'den M3U8 içeriğini fetch et (Kotlin: m3uContent)
+                    const randomId = Math.random().toString(36).substring(2, 10);
+                    return {
+                        instructions: [{
+                            requestId: `dizibox-king-sheila-${Date.now()}-${randomId}`,
+                            purpose: 'king-sheila',
+                            url: sheilaUrl,
+                            method: 'GET',
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                                'Referer': embedUrl
+                            },
+                            metadata: { streamName, embedUrl }
+                        }]
+                    };
                 } else {
                     console.log('   ❌ Decrypt edildi ama file: bulunamadı');
                     console.log(`   Decrypted preview: ${decrypted.substring(0, 200)}...`);
@@ -924,6 +914,52 @@ async function processFetchResult(fetchResult) {
         }
 
         console.log(`\n📊 King player'dan ${streams.length} stream bulundu`);
+        return { streams };
+    }
+
+    if (purpose === 'king-sheila') {
+        console.log('\n📥 [KING SHEILA] M3U8 içeriği alınıyor...');
+        const streams = [];
+        const streamName = metadata?.streamName || 'DiziBox King';
+        const embedUrl = metadata?.embedUrl || url;
+
+        // Body'nin kendisi M3U8 playlist içeriği (Kotlin: m3uContent.lineSequence())
+        const lines = body.split('\n').map(line => line.trim()).filter(line => line);
+
+        for (const line of lines) {
+            // HTTP/HTTPS ile başlayan ilk satırı al (Kotlin: firstOrNull { it.startsWith("http") })
+            if (line.startsWith('http://') || line.startsWith('https://')) {
+                console.log(`   ✅ M3U8 stream URL bulundu: ${line.substring(0, 80)}...`);
+
+                const headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Referer': embedUrl
+                };
+
+                streams.push({
+                    name: `${streamName} 📺 1080p`,
+                    title: `${streamName} 📺 1080p`,
+                    url: line,
+                    type: 'm3u8',
+                    behaviorHints: {
+                        notWebReady: false,
+                        bingeGroup: 'dizibox-king',
+                        httpHeaders: headers, // Flutter format
+                        proxyHeaders: { request: headers } // Stremio standard
+                    }
+                });
+
+                // İlk URL'i kullan
+                break;
+            }
+        }
+
+        if (streams.length === 0) {
+            console.log('   ❌ Sheila response\'da HTTP URL bulunamadı');
+            console.log(`   Body preview: ${body.substring(0, 200)}...`);
+        }
+
+        console.log(`\n📊 Sheila'dan ${streams.length} stream bulundu`);
         return { streams };
     }
 
@@ -944,6 +980,12 @@ async function processFetchResult(fetchResult) {
                 if (line.startsWith('http://') || line.startsWith('https://')) {
                     console.log(`   ✅ M3U8 stream URL bulundu: ${line.substring(0, 80)}...`);
 
+                    const headers = {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Referer': url,
+                        'Origin': new URL(url).origin
+                    };
+
                     streams.push({
                         name: `${streamName} 📺`,
                         title: `${streamName} 📺`,
@@ -952,13 +994,8 @@ async function processFetchResult(fetchResult) {
                         behaviorHints: {
                             notWebReady: false,
                             bingeGroup: 'dizibox-stream',
-                            proxyHeaders: {
-                                request: {
-                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                                    'Referer': line,
-                                    'Origin': BASE_URL
-                                }
-                            }
+                            httpHeaders: headers, // Flutter format
+                            proxyHeaders: { request: headers } // Stremio standard
                         }
                     });
 
@@ -973,6 +1010,190 @@ async function processFetchResult(fetchResult) {
             }
         }
 
+        // OK.ru için özel extraction
+        if (url.includes('ok.ru/videoembed')) {
+            console.log('   🔍 OK.ru video tespit edildi, JSON data aranıyor...');
+
+            // Önce video engellenmiş mi kontrol et
+            if (body.includes('yayın hakları') ||
+                body.includes('engellenmiştir') ||
+                body.includes('COPYRIGHTS_RESTRICTED') ||
+                body.includes('vp_video_stub __na') ||
+                body.includes('blocked') ||
+                body.includes('restricted')) {
+                console.log('   ⛔ OK.ru videosu telif hakkı nedeniyle engellenmiş');
+                console.log('   💡 Bu sunucu kullanılamıyor, diğer sunucuları deneyin');
+                // Boş sonuç döndür, diğer sunucular denenecek
+                return { streams: [] };
+            }
+
+            let videoData = null;
+            let jsonStr = null;
+
+            // Pattern 1: data-video attribute
+            let okVideoMatch = body.match(/data-video="([^"]+)"/);
+            if (!okVideoMatch) okVideoMatch = body.match(/data-video='([^']+)'/);
+            if (!okVideoMatch) okVideoMatch = body.match(/data-video=&quot;([^&]+)&quot;/);
+
+            if (okVideoMatch) {
+                jsonStr = okVideoMatch[1];
+                console.log(`   📄 data-video attribute bulundu`);
+            }
+
+            // Pattern 2: data-options attribute
+            if (!jsonStr) {
+                const dataOptionsMatch = body.match(/data-options="([^"]+)"/);
+                if (dataOptionsMatch) {
+                    jsonStr = dataOptionsMatch[1];
+                    console.log(`   📄 data-options attribute bulundu`);
+                }
+            }
+
+            // Pattern 3: data-module attribute içinde flashvars
+            if (!jsonStr) {
+                const dataModuleMatch = body.match(/data-module="OKVideo"[^>]*data-options='([^']+)'/);
+                if (dataModuleMatch) {
+                    jsonStr = dataModuleMatch[1];
+                    console.log(`   📄 data-module OKVideo bulundu`);
+                }
+            }
+
+            // Pattern 4: JavaScript içinde __PLAYER_CONFIG__ veya benzer değişkenler
+            if (!jsonStr) {
+                const patterns = [
+                    /__PLAYER_CONFIG__\s*=\s*({[\s\S]*?});/,
+                    /window\.VideoPlayer\s*=\s*({[\s\S]*?});/,
+                    /var\s+flashvars\s*=\s*({[\s\S]*?});/,
+                    /data\.flashvars\s*=\s*({[\s\S]*?});/,
+                    /videoData\s*=\s*({[\s\S]*?});/
+                ];
+
+                for (const pattern of patterns) {
+                    const jsMatch = body.match(pattern);
+                    if (jsMatch) {
+                        jsonStr = jsMatch[1];
+                        console.log(`   📄 JavaScript içinde video data bulundu`);
+                        break;
+                    }
+                }
+            }
+
+            // Pattern 5: Script tag içinde metadata JSON
+            if (!jsonStr && body.includes('metadata')) {
+                const metaMatch = body.match(/"metadata"\s*:\s*({[^}]+})/);
+                if (metaMatch) {
+                    jsonStr = metaMatch[1];
+                    console.log(`   📄 metadata JSON bulundu`);
+                }
+            }
+
+            // JSON string'i varsa parse et
+            if (jsonStr) {
+                try {
+                    // HTML entity'lerini decode et
+                    jsonStr = jsonStr
+                        .replace(/&quot;/g, '"')
+                        .replace(/&amp;/g, '&')
+                        .replace(/&#039;/g, "'")
+                        .replace(/&#39;/g, "'")
+                        .replace(/&lt;/g, '<')
+                        .replace(/&gt;/g, '>')
+                        .replace(/\\/g, '');
+
+                    console.log(`   📄 JSON parse ediliyor (${jsonStr.length} chars)...`);
+
+                    videoData = JSON.parse(jsonStr);
+                    console.log(`   ✅ JSON parse başarılı, keys: ${Object.keys(videoData).slice(0, 10).join(', ')}`);
+
+                } catch (e) {
+                    console.log(`   ❌ JSON parse hatası: ${e.message}`);
+                    console.log(`   🔍 JSON preview: ${jsonStr.substring(0, 300)}...`);
+                }
+            }
+
+            // Video data parse edildiyse stream'leri çıkar
+            if (videoData) {
+                // HLS URL'i varsa kullan (öncelikli)
+                if (videoData.hlsMasterPlaylistUrl) {
+                    const hlsUrl = videoData.hlsMasterPlaylistUrl;
+                    console.log(`   ✅ OK.ru HLS URL bulundu: ${hlsUrl.substring(0, 80)}...`);
+
+                    const headers = {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'Referer': url,
+                        'Origin': 'https://ok.ru'
+                    };
+
+                    streams.push({
+                        name: `${streamName} 📺 HLS`,
+                        title: `${streamName} 📺 HLS`,
+                        url: hlsUrl,
+                        type: 'm3u8',
+                        behaviorHints: {
+                            notWebReady: false,
+                            bingeGroup: 'dizibox-stream',
+                            httpHeaders: headers, // Flutter format
+                            proxyHeaders: { request: headers } // Stremio standard
+                        }
+                    });
+                }
+
+                // MP4 videos array'i varsa
+                if (videoData.videos && Array.isArray(videoData.videos) && videoData.videos.length > 0) {
+                    // En yüksek kaliteli videoyu al
+                    const sortedVideos = videoData.videos.sort((a, b) => {
+                        const heightA = parseInt(a.name) || parseInt(a.height) || 0;
+                        const heightB = parseInt(b.name) || parseInt(b.height) || 0;
+                        return heightB - heightA;
+                    });
+
+                    for (let i = 0; i < Math.min(sortedVideos.length, 3); i++) {
+                        const video = sortedVideos[i];
+                        const quality = video.name || video.height || 'SD';
+                        console.log(`   ✅ OK.ru video URL bulundu (${quality}): ${video.url.substring(0, 80)}...`);
+
+                        const headers = {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Referer': url,
+                            'Origin': 'https://ok.ru'
+                        };
+
+                        streams.push({
+                            name: `${streamName} 📺 ${quality}`,
+                            title: `${streamName} 📺 ${quality}`,
+                            url: video.url,
+                            type: 'direct',
+                            behaviorHints: {
+                                notWebReady: false,
+                                bingeGroup: 'dizibox-stream',
+                                httpHeaders: headers, // Flutter format
+                                proxyHeaders: { request: headers } // Stremio standard
+                            }
+                        });
+                    }
+                }
+
+                if (streams.length > 0) {
+                    console.log(`\n📊 OK.ru'dan ${streams.length} stream bulundu`);
+                    return { streams };
+                }
+            }
+
+            // Hiçbir pattern match etmediyse, detaylı log
+            if (!jsonStr) {
+                console.log('   ⚠️ OK.ru sayfasında hiçbir video data pattern\'i bulunamadı');
+                console.log(`   🔍 Body size: ${body.length} bytes`);
+                console.log(`   🔍 Body preview (first 500): ${body.substring(0, 500)}...`);
+                console.log(`   🔍 Body preview (chars 1000-1500): ${body.substring(1000, 1500)}...`);
+
+                // data- attribute'larını listele
+                const dataAttrs = body.match(/data-[a-z-]+=/gi);
+                if (dataAttrs) {
+                    console.log(`   🔍 Bulunan data attributes: ${[...new Set(dataAttrs)].join(', ')}`);
+                }
+            }
+        }
+
         // M3U8 URL'ini bul - daha geniş pattern'ler
         let m3uMatch = body.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
         if (!m3uMatch) m3uMatch = body.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/);
@@ -980,6 +1201,7 @@ async function processFetchResult(fetchResult) {
         if (!m3uMatch) m3uMatch = body.match(/src:\s*["']([^"']+\.m3u8[^"']*)["']/);
         if (!m3uMatch) m3uMatch = body.match(/playlist:\s*["']([^"']+\.m3u8[^"']*)["']/);
         if (!m3uMatch) m3uMatch = body.match(/videoUrl:\s*["']([^"']+\.m3u8[^"']*)["']/);
+        if (!m3uMatch) m3uMatch = body.match(/hlsManifestUrl['"]\s*:\s*['"]([^'"]+)['"]/);
         if (!m3uMatch) m3uMatch = body.match(/(https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*)/);
 
         // Script tag'lerinde ara
@@ -1015,6 +1237,12 @@ async function processFetchResult(fetchResult) {
 
             console.log(`   ✅ M3U8 bulundu: ${m3uUrl.substring(0, 80)}...`);
 
+            const headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': url,
+                'Origin': new URL(url).origin
+            };
+
             streams.push({
                 name: `${streamName} 📺`,
                 title: `${streamName} 📺`,
@@ -1023,13 +1251,8 @@ async function processFetchResult(fetchResult) {
                 behaviorHints: {
                     notWebReady: false,
                     bingeGroup: 'dizibox-stream',
-                    proxyHeaders: {
-                        request: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                            'Referer': m3uUrl,
-                            'Origin': BASE_URL
-                        }
-                    }
+                    httpHeaders: headers, // Flutter format
+                    proxyHeaders: { request: headers } // Stremio standard
                 }
             });
         } else {
