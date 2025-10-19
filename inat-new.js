@@ -10,7 +10,7 @@ const CONFIG = {
 
 // --- MANIFEST ---
 const manifest = {
-    id: 'com.keyiflerolsun.inatbox',
+     id: 'com.keyiflerolsun.inatbox',
     version: '3.0.5',
     name: 'InatBox',
     description: 'Turkish TV channels, movies and series streaming (Instruction Mode) - Kotlin mekanizması ile uyumlu',
@@ -41,7 +41,7 @@ const manifest = {
         { type: 'movie', id: 'mubi', name: '🎬 Mubi', extra: [] },
         { type: 'movie', id: 'tod', name: '🎬 TOD', extra: [] },
 
-        // Series / films
+        // Series / Filmler
         { type: 'series', id: 'yabanci-dizi', name: '📺 Yabancı Diziler', extra: [] },
         { type: 'series', id: 'yerli-dizi', name: '📺 Yerli Diziler', extra: [] },
         { type: 'movie', id: 'yerli-film', name: '🎬 Yerli Filmler', extra: [] },
@@ -1094,4 +1094,5 @@ module.exports = {
     handleStream,
     processFetchResult
 };
+
 
