@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stremio Turkish Addons - Multi-Addon Server</title>
+    <title>Mind Turkish Addons - Multi-Addon Server</title>
     <style>
         * {
             margin: 0;
@@ -300,7 +300,7 @@
 <body>
     <div class="container">
         <header>
-            <h1>🎬 Stremio Turkish Addons</h1>
+            <h1>🎬 Mind Turkish Addons</h1>
             <p>Tüm Türkçe içerikler tek sunucuda!</p>
             <div style="margin-top: 20px;">
                 <a href="/admin.html" class="btn btn-secondary" style="display: inline-block; text-decoration: none;">
@@ -336,9 +336,9 @@
         </div>
 
         <div class="instructions">
-            <h2>📖 Stremio'ya Nasıl Eklenir?</h2>
+            <h2>📖 Mind'ya Nasıl Eklenir?</h2>
             <ol>
-                <li>Stremio uygulamasını açın</li>
+                <li>Mind uygulamasını açın</li>
                 <li><strong>Addons</strong> sekmesine gidin</li>
                 <li>Sağ üstteki <strong>arama çubuğuna</strong> yukarıdaki manifest URL'lerinden birini yapıştırın</li>
                 <li><strong>Install</strong> butonuna tıklayın</li>
@@ -347,9 +347,9 @@
         </div>
 
         <footer>
-            <p>Made with ❤️ for Turkish Stremio Users</p>
+            <p>Made with ❤️ for Turkish Mind Users</p>
             <p style="margin-top: 10px; font-size: 0.9rem; opacity: 0.7;">
-                Powered by Stremio Addon SDK | Multi-Addon Server v1.0
+                Powered by Mind Addon SDK | Multi-Addon Server v1.0
             </p>
         </footer>
     </div>
@@ -447,7 +447,7 @@
 
         addonsData.forEach(addon => {
             const manifestUrl = `${baseUrl}/api/addon/${addon.addonId}/manifest.json`;
-            const stremioUrl = `stremio://${hostname}${port ? ':' + port : ''}/api/addon/${addon.addonId}/manifest.json`;
+            const MindUrl = `mind://${hostname}${port ? ':' + port : ''}/api/addon/${addon.addonId}/manifest.json`;
 
             const card = document.createElement('div');
             card.className = 'addon-card';
@@ -466,8 +466,8 @@
                     <a href="${manifestUrl}" target="_blank" class="btn btn-secondary">
                         🔗 Manifest'i Görüntüle
                     </a>
-                    <a href="${stremioUrl}" class="btn btn-primary">
-                        ⚡ Stremio'da Aç
+                    <a href="${MindUrl}" class="btn btn-primary">
+                        ⚡ Mind'de Aç
                     </a>
                 </div>
             `;
