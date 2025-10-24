@@ -4,7 +4,7 @@ const cheerio = require('cheerio');
 const manifest = {
     id: 'community.selcuksportshd',
     version: '1.0.0',
-    name: 'SelcukSportsHD',
+    name: 'SporCafe',
     description: 'Canlı spor kanalları - SelcukSportsHD için Stremio eklentisi (Instruction Mode)',
     resources: ['catalog', 'meta', 'stream'],
     types: ['tv', 'channel'],
@@ -55,7 +55,7 @@ const manifest = {
     idPrefixes: ['selcukshd']
 };
 
-const BASE_URL = 'https://www.selcuksportshd84bbfa41be.xyz/';
+const BASE_URL = 'https://www.selcuksportshd0fa6d0b304.xyz';
 const PLAYER_BASE_URL = 'https://main.uxsyplayerb03b3c895b.click/index.php?id=';
 
 // Kanal kategorilerine göre regex filtreleme

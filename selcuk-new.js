@@ -55,8 +55,8 @@ const manifest = {
     idPrefixes: ['selcuk']
 };
 
-const BASE_URL = 'https://www.sporcafe-2fd65c4bc314.xyz/';
-const PLAYER_BASE_URL = 'https://main.uxsyplayerb03b3c895b.click/index.php?id=';
+const BASE_URL = 'https://www.sporcafe-782a1a67028f.xyz';
+const PLAYER_BASE_URL = 'https://main.uxsyplayer7d716e84ac.click/index.php?id=';
 
 // Kanal kategorilerine göre regex filtreleme
 function getChannelFilter(catalogId) {
@@ -162,7 +162,14 @@ function parseChannels($, catalogId, body) {
     const channels = [];
 
     // JavaScript'teki channelsData array'ini çıkar
-    const scriptMatch = body.match(/const\s+channelsData\s*=\s*(\[[\s\S]*?\])\s*;/);
+    // İlk önce eski pattern'i deneyelim
+    let scriptMatch = body.match(/const\s+channelsData\s*=\s*(\[[\s\S]*?\])\s*;/);
+
+    // Eğer bulunamazsa, daha esnek bir pattern deneyelim
+    if (!scriptMatch) {
+        scriptMatch = body.match(/channelsData\s*=\s*(\[[\s\S]*?\])/);
+    }
+
     if (!scriptMatch) {
         console.log('⚠️ channelsData bulunamadı');
         return channels;
@@ -171,7 +178,7 @@ function parseChannels($, catalogId, body) {
     let channelsData;
     try {
         // JSON.parse için noktalı virgülü çıkarıyoruz
-        const jsonStr = scriptMatch[1].trim();
+        const jsonStr = scriptMatch[1].trim().replace(/;$/, '');
         channelsData = JSON.parse(jsonStr);
         console.log(`✓ channelsData parse edildi: ${channelsData.length} kanal`);
     } catch (e) {
@@ -200,6 +207,8 @@ function parseChannels($, catalogId, body) {
     channelsData.forEach(channel => {
         const streamId = channel.stream_url;
         const channelName = channel.name;
+        const logoUrl = channel.logo_url || '';
+        const category = channel.category || '';
 
         if (!streamId || !channelName) return;
 
@@ -214,13 +223,19 @@ function parseChannels($, catalogId, body) {
 
         const id = 'selcuk:channel:' + Buffer.from(fullUrl).toString('base64').replace(/=/g, '');
 
+        // Poster URL'sini oluştur
+        let posterUrl = `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(channelName)}`;
+        if (logoUrl && logoUrl.startsWith('/assets/')) {
+            posterUrl = BASE_URL + logoUrl;
+        }
+
         channels.push({
             id: id,
             type: 'tv',
             name: `📺 ${channelName}`,
-            poster: `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(channelName)}`,
+            poster: posterUrl,
             posterShape: 'square',
-            description: `${channelName} - Canlı Yayın`
+            description: `${channelName} - Canlı Yayın${category ? ' - ' + category : ''}`
         });
     });
 
@@ -232,7 +247,14 @@ function parseLiveMatches($, body) {
     const matches = [];
 
     // JavaScript'teki channelsData array'ini çıkar
-    const scriptMatch = body.match(/const\s+channelsData\s*=\s*(\[[\s\S]*?\])\s*;/);
+    // İlk önce eski pattern'i deneyelim
+    let scriptMatch = body.match(/const\s+channelsData\s*=\s*(\[[\s\S]*?\])\s*;/);
+
+    // Eğer bulunamazsa, daha esnek bir pattern deneyelim
+    if (!scriptMatch) {
+        scriptMatch = body.match(/channelsData\s*=\s*(\[[\s\S]*?\])/);
+    }
+
     if (!scriptMatch) {
         console.log('⚠️ channelsData bulunamadı (live matches)');
         return matches;
@@ -241,7 +263,7 @@ function parseLiveMatches($, body) {
     let channelsData;
     try {
         // JSON.parse için noktalı virgülü çıkarıyoruz
-        const jsonStr = scriptMatch[1].trim();
+        const jsonStr = scriptMatch[1].trim().replace(/;$/, '');
         channelsData = JSON.parse(jsonStr);
         console.log(`✓ channelsData parse edildi: ${channelsData.length} kanal (live matches)`);
     } catch (e) {
@@ -254,6 +276,8 @@ function parseLiveMatches($, body) {
     channelsData.forEach(channel => {
         const streamId = channel.stream_url;
         const matchName = channel.name;
+        const logoUrl = channel.logo_url || '';
+        const category = channel.category || '';
 
         if (!streamId || !matchName) return;
 
@@ -262,13 +286,19 @@ function parseLiveMatches($, body) {
 
         const id = 'selcuk:match:' + Buffer.from(fullUrl).toString('base64').replace(/=/g, '');
 
+        // Poster URL'sini oluştur
+        let posterUrl = `https://via.placeholder.com/300x450/ff0000/ffffff?text=${encodeURIComponent('CANLI')}`;
+        if (logoUrl && logoUrl.startsWith('/assets/')) {
+            posterUrl = BASE_URL + logoUrl;
+        }
+
         matches.push({
             id: id,
             type: 'tv',
             name: `🔴 ${matchName}`,
-            poster: `https://via.placeholder.com/300x450/ff0000/ffffff?text=${encodeURIComponent('CANLI')}`,
+            poster: posterUrl,
             posterShape: 'square',
-            description: `Canlı: ${matchName}`
+            description: `Canlı: ${matchName}${category ? ' - ' + category : ''}`
         });
     });
 
@@ -333,6 +363,7 @@ async function processFetchResult(fetchResult) {
             /["']?src["']?\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i,
             /["']?url["']?\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i,
             /["']?hlsUrl["']?\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i,
+            /const\s+hlsUrl\s*=\s*["']([^"']+\.m3u8[^"']*)["']/i,
             /(https?:\/\/[^"'\s<>]+\.m3u8[^\s"'<>]*)/gi
         ];
 

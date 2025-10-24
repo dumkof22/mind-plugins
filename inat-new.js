@@ -18,7 +18,7 @@ const manifest = {
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie', 'series', 'tv'],
     catalogs: [
-        // TV lists
+        // TV lists - Her katalog için extra parametresi eklendi
         { type: 'tv', id: 'spor', name: '📺 Spor Kanalları', extra: [] },
         { type: 'tv', id: 'list1', name: '📺 Kanallar Liste 1', extra: [] },
         { type: 'tv', id: 'list2', name: '📺 Kanallar Liste 2', extra: [] },
@@ -41,13 +41,13 @@ const manifest = {
         { type: 'movie', id: 'mubi', name: '🎬 Mubi', extra: [] },
         { type: 'movie', id: 'tod', name: '🎬 TOD', extra: [] },
 
-        // Series / Filmler
+        // Series / films
         { type: 'series', id: 'yabanci-dizi', name: '📺 Yabancı Diziler', extra: [] },
         { type: 'series', id: 'yerli-dizi', name: '📺 Yerli Diziler', extra: [] },
         { type: 'movie', id: 'yerli-film', name: '🎬 Yerli Filmler', extra: [] },
         { type: 'movie', id: '4k-film', name: '🎬 4K Film İzle', extra: [] },
 
-        // SEARCH katalogu
+        // SEARCH katalogu (Stremio aramaları için)
         { type: 'movie', id: 'inat_search', name: '🔍 Arama', extra: [{ name: 'search', isRequired: true }] }
     ],
     idPrefixes: ['inatbox']
@@ -56,34 +56,28 @@ const manifest = {
 // --- URL MAP ---
 const catalogUrls = {
     spor: 'https://boxbc.icu/CDN/001_STR/boxbc.icu/spor_v2.php',
-    
-    // TV Kanalları
-    list1: 'https://diziboox.sbs/CDN/001/dizibox/tv/list1.php',
-    list2: 'https://diziboox.sbs/CDN/001/dizibox/tv/list2.php',
-    list3: 'https://diziboox.sbs/CDN/001/dizibox/tv/list3.php',
-    sinema: 'https://diziboox.sbs/CDN/001/dizibox/tv/sinema.php',
-    belgesel: 'https://diziboox.sbs/CDN/001/dizibox/tv/belgesel.php',
-    ulusal: 'https://diziboox.sbs/CDN/001/dizibox/tv/ulusal.php',
-    haber: 'https://diziboox.sbs/CDN/001/dizibox/tv/haber.php',
-    eba: 'https://diziboox.sbs/CDN/001/dizibox/tv/eba.php',
-    cocuk: 'https://diziboox.sbs/CDN/001/dizibox/tv/cocuk.php',
-    dini: 'https://diziboox.sbs/CDN/001/dizibox/tv/dini.php',
-    
-    // Streaming Servisleri
-    exxen: 'https://diziboox.sbs/CDN/001/dizibox/ex/index.php',
-    gain: 'https://diziboox.sbs/CDN/001/dizibox/ga/index.php',
-    disney: 'https://diziboox.sbs/CDN/001/dizibox/dsny/index.php',
-    amazon: 'https://diziboox.sbs/CDN/001/dizibox/amz/index.php',
-    hbo: 'https://diziboox.sbs/CDN/001/dizibox/hb/index.php',
-    tabii: 'https://diziboox.sbs/CDN/001/dizibox/tbi/index.php',
-    mubi: 'https://diziboox.sbs/CDN/001/dizibox/film/mubi.php',
-    tod: 'https://boxbc.icu/CDN/001_STR/boxbc.icu/ccc/index.php',
-    
-    // Dizi ve Filmler
-    'yabanci-dizi': 'https://diziboox.sbs/CDN/001/dizibox/yabanci-dizi/index.php',
-    'yerli-dizi': 'https://diziboox.sbs/CDN/001/dizibox/yerli-dizi/index.php',
-    'yerli-film': 'https://diziboox.sbs/CDN/001/dizibox/film/yerli-filmler.php',
-    '4k-film': 'https://diziboox.sbs/CDN/001/dizibox/film/4k-film-exo.php'
+    list1: `https://diziboox.sbs/CDN/001/dizibox/tv/list1.php`,
+    list2: `https://diziboox.sbs/CDN/001/dizibox/tv/list2.php`,
+    list3: `https://diziboox.sbs/CDN/001/dizibox/tv/list3.php`,
+    sinema: `https://diziboox.sbs/CDN/001/dizibox/tv/sinema.php`,
+    belgesel: `https://diziboox.sbs/CDN/001/dizibox/tv/belgesel.php`,
+    ulusal: `https://diziboox.sbs/CDN/001/dizibox/tv/ulusal.php`,
+    haber: `https://diziboox.sbs/CDN/001/dizibox/tv/haber.php`,
+    eba: `https://diziboox.sbs/CDN/001/dizibox/tv/eba.php`,
+    cocuk: `https://diziboox.sbs/CDN/001/dizibox/tv/cocuk.php`,
+    dini: `https://diziboox.sbs/CDN/001/dizibox/tv/dini.php`,
+    exxen: `https://diziboox.sbs/CDN/001/dizibox/ex/index.php`,
+    gain: `https://diziboox.sbs/CDN/001/dizibox/ga/index.php`,
+    disney: `https://diziboox.sbs/CDN/001/dizibox/dsny/index.php`,
+    amazon: `https://diziboox.sbs/CDN/001/dizibox/amz/index.php`,
+    hbo: `https://diziboox.sbs/CDN/001/dizibox/hb/index.php`,
+    tabii: `https://diziboox.sbs/CDN/001/dizibox/tbi/index.php`,
+    mubi: `https://diziboox.sbs/CDN/001/dizibox/film/mubi.php`,
+    tod: `https://boxbc.icu/CDN/001_STR/boxbc.icu/ccc/index.php`,
+    'yabanci-dizi': `https://diziboox.sbs/CDN/001/dizibox/yabanci-dizi/index.php`,
+    'yerli-dizi': `https://diziboox.sbs/CDN/001/dizibox/yerli-dizi/index.php`,
+    'yerli-film': `https://diziboox.sbs/CDN/001/dizibox/film/yerli-filmler.php`,
+    '4k-film': `https://diziboox.sbs/CDN/001/dizibox/film/4k-film-exo.php`
 };
 
 // --- HELPERS ---
@@ -645,20 +639,49 @@ async function processFetchResult(fetchResult) {
         if (sourceUrl.includes('.m3u8') || sourceUrl.includes('.mpd')) {
             safeLog(`✅ [Extractor] Direct stream URL detected: ${sourceUrl.includes('.m3u8') ? 'M3U8' : 'MPD'}`);
 
-            // Headers'ı normalize et
-            let headersArray = item.chHeaders || [];
-            if (typeof headersArray === 'string' && headersArray !== 'null') {
-                try {
-                    headersArray = JSON.parse(headersArray);
-                } catch (e) {
-                    headersArray = [];
+            // Headers'ı Kotlin mantığıyla normalize et (line 359-372)
+            let headersObject = {};
+
+            // chHeaders'ı parse et
+            try {
+                const chHeaders = item.chHeaders;
+                if (chHeaders && chHeaders !== 'null') {
+                    let parsedHeaders = chHeaders;
+                    if (typeof chHeaders === 'string') {
+                        parsedHeaders = JSON.parse(chHeaders);
+                    }
+                    if (Array.isArray(parsedHeaders) && parsedHeaders.length > 0) {
+                        Object.assign(headersObject, parsedHeaders[0]);
+                    } else if (typeof parsedHeaders === 'object') {
+                        Object.assign(headersObject, parsedHeaders);
+                    }
                 }
+            } catch (e) {
+                safeLog('⚠️ Error parsing chHeaders:', e.message);
             }
-            if (!Array.isArray(headersArray)) {
-                headersArray = [headersArray];
+
+            // chReg'den Cookie ekle (Kotlin line 368-372)
+            try {
+                const chReg = item.chReg;
+                if (chReg && chReg !== 'null') {
+                    let parsedReg = chReg;
+                    if (typeof chReg === 'string') {
+                        parsedReg = JSON.parse(chReg);
+                    }
+                    if (Array.isArray(parsedReg) && parsedReg.length > 0 && parsedReg[0].playSH2) {
+                        headersObject['Cookie'] = parsedReg[0].playSH2;
+                    }
+                }
+            } catch (e) {
+                safeLog('⚠️ Error parsing chReg:', e.message);
             }
-            if (headersArray.length === 0) {
-                headersArray = [{ 'Referer': '', 'User-Agent': CONFIG.userAgent }];
+
+            // Varsayılan headers ekle (eğer hiç yoksa)
+            if (Object.keys(headersObject).length === 0) {
+                headersObject = {
+                    'User-Agent': CONFIG.userAgent,
+                    'Referer': ''
+                };
             }
 
             streams.push({
@@ -667,13 +690,13 @@ async function processFetchResult(fetchResult) {
                 title: item.chName || 'Direct Stream',
                 behaviorHints: {
                     notWebReady: false,
-                    httpHeaders: headersArray
+                    httpHeaders: [headersObject]
                 },
                 addonName: 'inatbox',
                 addonManifestUrl
             });
 
-            safeLog(`✅ [Extractor] Generated 1 direct stream`);
+            safeLog(`✅ [Extractor] Generated 1 direct stream (headers: ${Object.keys(headersObject).join(', ')})`);
             return { streams };
         }
 
@@ -1094,4 +1117,3 @@ module.exports = {
     handleStream,
     processFetchResult
 };
-

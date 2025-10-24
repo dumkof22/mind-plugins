@@ -452,12 +452,17 @@ async function processFetchResult(fetchResult) {
         console.log(`   ${seasonLinks.length} sezon linki bulundu, bölümler için instruction oluşturuluyor...`);
 
         if (seasonLinks.length > 0) {
-            // Ana sayfada bölüm varsa ve sezon sayısı çoksa, sadece ilk 3 sezonu al (hız optimizasyonu)
-            const maxSeasons = (videos.length > 0 && seasonLinks.length > 5) ? 3 : seasonLinks.length;
+            // Ana sayfada bölüm varsa bile sezon sayfalarını da işleyelim
+            // Kullanıcı örneğinden anlaşıldığı üzere sezon sayfaları önemli
+
+            // Performans için sezon sayısını sınırlayalım
+            const maxSeasons = Math.min(seasonLinks.length, 5); // En fazla 5 sezon al
             const limitedSeasonLinks = seasonLinks.slice(0, maxSeasons);
 
             if (maxSeasons < seasonLinks.length) {
                 console.log(`   ⚡ Performans için sadece ilk ${maxSeasons} sezon alınacak`);
+            } else {
+                console.log(`   ✅ Tüm sezonlar işlenecek (${seasonLinks.length} sezon)`);
             }
 
             // Sezon sayfalarını fetch etmek için instructions döndür
@@ -530,14 +535,27 @@ async function processFetchResult(fetchResult) {
 
         console.log('   Sezon bölümleri parse ediliyor...');
 
-        $('article.grid-box').each((i, elem) => {
-            const epTitle = $(elem).find('div.post-title a').text().trim();
-            const epHref = $(elem).find('div.post-title a').attr('href');
+        // Kullanıcının gönderdiği HTML'e göre düzeltilmiş seçici
+        // Hem grid-box hem de grid-four sınıflarını kontrol edelim
+        $('article.grid-box, article.grid-four').each((i, elem) => {
+            // İlk a etiketini bölüm linki olarak al
+            const epLink = $(elem).find('div.post-title a').first();
+            let epTitle = epLink.text().trim();
+            let epHref = epLink.attr('href');
+
+            // Alternatif olarak season-episode sınıfını da kontrol et
+            if (!epTitle || !epHref) {
+                const seasonEpLink = $(elem).find('a.season-episode');
+                if (seasonEpLink.length) {
+                    epTitle = seasonEpLink.text().trim();
+                    epHref = seasonEpLink.attr('href');
+                }
+            }
 
             if (epTitle && epHref) {
-                // Sezon ve bölüm numaralarını parse et
-                const seasonMatch = epTitle.match(/(\d+)\.\s*Sezon/i);
-                const episodeMatch = epTitle.match(/(\d+)\.\s*Bölüm/i);
+                // Sezon ve bölüm numaralarını parse et (daha esnek regex)
+                const seasonMatch = epTitle.match(/(\d+)[\.\s]*(Sezon|sezon)/i);
+                const episodeMatch = epTitle.match(/(\d+)[\.\s]*(Bölüm|bolum|bölum)/i);
 
                 const season = seasonMatch ? parseInt(seasonMatch[1]) : 1;
                 const episode = episodeMatch ? parseInt(episodeMatch[1]) : null;
@@ -612,27 +630,39 @@ async function processFetchResult(fetchResult) {
             }
         });
 
-        // Alternatif sunucuları bul
+        // Alternatif sunucuları bul - Kotlin kodundaki gibi sadece ilk alternatifi al
         let altServerIndex = 2;
+        const altServers = [];
+
         $('div.video-toolbar option[value]').each((i, elem) => {
             const altUrl = $(elem).attr('value');
             if (altUrl && altUrl !== url) {
                 const fullAltUrl = altUrl.startsWith('http') ? altUrl : `${BASE_URL}${altUrl}`;
-
-                // Alternatif sunucu sayfasını fetch et (Kotlin kodundaki gibi)
-                instructions.push({
-                    requestId: `dizibox-alt-page-${Date.now()}-${randomId}-${i}`,
-                    purpose: 'alternative-page',
+                altServers.push({
                     url: fullAltUrl,
-                    method: 'GET',
-                    headers: getDefaultHeaders(url),
-                    metadata: {
-                        originalUrl: url,
-                        streamName: `DiziBox Server ${altServerIndex++}`
-                    }
+                    name: `DiziBox Server ${altServerIndex++}`
                 });
             }
         });
+
+        // Sadece ilk alternatif sunucuyu işle (Kotlin kodunda olduğu gibi)
+        if (altServers.length > 0) {
+            // En fazla 1 alternatif sunucu ekle (ana sunucu çalışmazsa yedek olarak)
+            const firstAlt = altServers[0];
+            console.log(`   ⚡ Performans için sadece ilk alternatif sunucu işlenecek: ${firstAlt.name}`);
+
+            instructions.push({
+                requestId: `dizibox-alt-page-${Date.now()}-${randomId}-0`,
+                purpose: 'alternative-page',
+                url: firstAlt.url,
+                method: 'GET',
+                headers: getDefaultHeaders(url),
+                metadata: {
+                    originalUrl: url,
+                    streamName: firstAlt.name
+                }
+            });
+        }
 
         console.log(`📊 Toplam ${instructions.length} iframe instruction oluşturuldu`);
         return { instructions };
@@ -687,147 +717,52 @@ async function processFetchResult(fetchResult) {
         console.log(`\n🔍 [IFRAME EXTRACT] ${streamName} işleniyor...`);
         console.log(`   URL: ${url.substring(0, 80)}...`);
 
-        // King player kontrolü (/player/king/king.php)
-        if (url.includes('/player/king/king.php')) {
-            console.log('   🔑 King player tespit edildi');
+        // Kotlin kodundaki gibi doğrudan Player iframe'i bul ve işle
+        const playerIframe = $('div#Player iframe').attr('src');
 
-            // İçteki iframe'i bul
-            const subIframe = $('div#Player iframe').attr('src');
-            if (!subIframe) {
-                console.log('   ❌ King player içinde iframe bulunamadı');
-                return { streams };
+        if (playerIframe) {
+            // İçteki iframe'i doğrudan işle (Kotlin kodundaki gibi)
+            const fullIframeUrl = playerIframe.startsWith('http') ? playerIframe : `${BASE_URL}${playerIframe}`;
+            console.log(`   ✅ Player iframe bulundu: ${fullIframeUrl.substring(0, 80)}...`);
+
+            // Kotlin kodunda olduğu gibi vidmoly.me -> vidmoly.net değişimi yap
+            let sheilaUrl = fullIframeUrl.replace('/embed/', '/embed/sheila/').replace('vidmoly.me', 'vidmoly.net');
+
+            // dbx.molystream kontrolü (Kotlin kodundaki gibi)
+            if (sheilaUrl.includes('dbx.molystream')) {
+                console.log(`   🎯 dbx.molystream tespit edildi, doğrudan m3u8 alınacak`);
+
+                const randomId = Math.random().toString(36).substring(2, 10);
+                return {
+                    instructions: [{
+                        requestId: `dizibox-molystream-${Date.now()}-${randomId}`,
+                        purpose: 'molystream-direct',
+                        url: sheilaUrl,
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Referer': fullIframeUrl
+                        },
+                        metadata: { streamName, embedUrl: fullIframeUrl }
+                    }]
+                };
             }
 
-            const subIframeUrl = subIframe.startsWith('http') ? subIframe : `${BASE_URL}${subIframe}`;
-            console.log(`   Sub-iframe bulundu: ${subIframeUrl.substring(0, 80)}...`);
-
-            // Sub-iframe'i fetch et
+            // Diğer iframe'ler için doğrudan stream extraction yap
             const randomId = Math.random().toString(36).substring(2, 10);
             return {
                 instructions: [{
-                    requestId: `dizibox-king-sub-${Date.now()}-${randomId}`,
-                    purpose: 'king-decrypt',
-                    url: subIframeUrl,
+                    requestId: `dizibox-iframe-stream-${Date.now()}-${randomId}`,
+                    purpose: 'iframe-stream',
+                    url: sheilaUrl,
                     method: 'GET',
                     headers: getDefaultHeaders(url),
-                    metadata: { streamName }
+                    metadata: { streamName, embedUrl: fullIframeUrl }
                 }]
             };
         }
 
-        // Moly player kontrolü (/player/moly/moly.php)
-        if (url.includes('/player/moly/moly.php')) {
-            console.log('   🔑 Moly player tespit edildi');
-
-            // Base64 decode dene (Kotlin: unescape sonrası atob)
-            const atobMatch = body.match(/unescape\(["'](.+?)["']\)/);
-            if (atobMatch) {
-                try {
-                    // URI decode et
-                    const decodedUri = decodeURIComponent(atobMatch[1]);
-                    // Base64 decode et
-                    const decodedBase64 = Buffer.from(decodedUri, 'base64').toString('utf-8');
-                    const decoded$ = cheerio.load(decodedBase64);
-
-                    const subIframe = decoded$('div#Player iframe').attr('src');
-                    if (subIframe) {
-                        const fullSubIframe = subIframe.startsWith('http') ? subIframe : `${BASE_URL}${subIframe}`;
-                        console.log(`   ✅ Moly decoded, sub-iframe: ${fullSubIframe.substring(0, 80)}...`);
-
-                        const randomId = Math.random().toString(36).substring(2, 10);
-                        return {
-                            instructions: [{
-                                requestId: `dizibox-moly-sub-${Date.now()}-${randomId}`,
-                                purpose: 'iframe-stream',
-                                url: fullSubIframe,
-                                method: 'GET',
-                                headers: getDefaultHeaders(url),
-                                metadata: { streamName }
-                            }]
-                        };
-                    }
-                } catch (e) {
-                    console.log(`   ⚠️ Moly decode hatası: ${e.message}`);
-                }
-            }
-
-            // Decode olmadan iframe bul
-            const subIframe = $('div#Player iframe').attr('src');
-            if (subIframe) {
-                const fullSubIframe = subIframe.startsWith('http') ? subIframe : `${BASE_URL}${subIframe}`;
-                console.log(`   ✅ Moly direct iframe: ${fullSubIframe.substring(0, 80)}...`);
-
-                const randomId = Math.random().toString(36).substring(2, 10);
-                return {
-                    instructions: [{
-                        requestId: `dizibox-moly-direct-${Date.now()}-${randomId}`,
-                        purpose: 'iframe-stream',
-                        url: fullSubIframe,
-                        method: 'GET',
-                        headers: getDefaultHeaders(url),
-                        metadata: { streamName }
-                    }]
-                };
-            }
-        }
-
-        // Haydi player kontrolü (/player/haydi.php)
-        if (url.includes('/player/haydi.php')) {
-            console.log('   🔑 Haydi player tespit edildi');
-
-            // Base64 decode dene (Kotlin: unescape sonrası atob)
-            const atobMatch = body.match(/unescape\(["'](.+?)["']\)/);
-            if (atobMatch) {
-                try {
-                    // URI decode et
-                    const decodedUri = decodeURIComponent(atobMatch[1]);
-                    // Base64 decode et
-                    const decodedBase64 = Buffer.from(decodedUri, 'base64').toString('utf-8');
-                    const decoded$ = cheerio.load(decodedBase64);
-
-                    const subIframe = decoded$('div#Player iframe').attr('src');
-                    if (subIframe) {
-                        const fullSubIframe = subIframe.startsWith('http') ? subIframe : `${BASE_URL}${subIframe}`;
-                        console.log(`   ✅ Haydi decoded, sub-iframe: ${fullSubIframe.substring(0, 80)}...`);
-
-                        const randomId = Math.random().toString(36).substring(2, 10);
-                        return {
-                            instructions: [{
-                                requestId: `dizibox-haydi-sub-${Date.now()}-${randomId}`,
-                                purpose: 'iframe-stream',
-                                url: fullSubIframe,
-                                method: 'GET',
-                                headers: getDefaultHeaders(url),
-                                metadata: { streamName }
-                            }]
-                        };
-                    }
-                } catch (e) {
-                    console.log(`   ⚠️ Haydi decode hatası: ${e.message}`);
-                }
-            }
-
-            // Decode olmadan iframe bul
-            const subIframe = $('div#Player iframe').attr('src');
-            if (subIframe) {
-                const fullSubIframe = subIframe.startsWith('http') ? subIframe : `${BASE_URL}${subIframe}`;
-                console.log(`   ✅ Haydi direct iframe: ${fullSubIframe.substring(0, 80)}...`);
-
-                const randomId = Math.random().toString(36).substring(2, 10);
-                return {
-                    instructions: [{
-                        requestId: `dizibox-haydi-direct-${Date.now()}-${randomId}`,
-                        purpose: 'iframe-stream',
-                        url: fullSubIframe,
-                        method: 'GET',
-                        headers: getDefaultHeaders(url),
-                        metadata: { streamName }
-                    }]
-                };
-            }
-        }
-
-        // Genel iframe arama
+        // Genel iframe arama (yedek)
         const anyIframe = $('iframe').first().attr('src');
         if (anyIframe) {
             console.log('   ℹ️ Genel iframe bulundu, stream extraction yapılıyor...');
@@ -917,10 +852,10 @@ async function processFetchResult(fetchResult) {
         return { streams };
     }
 
-    if (purpose === 'king-sheila') {
-        console.log('\n📥 [KING SHEILA] M3U8 içeriği alınıyor...');
+    if (purpose === 'king-sheila' || purpose === 'molystream-direct') {
+        console.log(`\n📥 [${purpose === 'king-sheila' ? 'KING SHEILA' : 'MOLYSTREAM DIRECT'}] M3U8 içeriği alınıyor...`);
         const streams = [];
-        const streamName = metadata?.streamName || 'DiziBox King';
+        const streamName = metadata?.streamName || 'DiziBox';
         const embedUrl = metadata?.embedUrl || url;
 
         // Body'nin kendisi M3U8 playlist içeriği (Kotlin: m3uContent.lineSequence())
@@ -943,7 +878,7 @@ async function processFetchResult(fetchResult) {
                     type: 'm3u8',
                     behaviorHints: {
                         notWebReady: false,
-                        bingeGroup: 'dizibox-king',
+                        bingeGroup: 'dizibox-stream',
                         httpHeaders: headers, // Flutter format
                         proxyHeaders: { request: headers } // Stremio standard
                     }
@@ -955,11 +890,11 @@ async function processFetchResult(fetchResult) {
         }
 
         if (streams.length === 0) {
-            console.log('   ❌ Sheila response\'da HTTP URL bulunamadı');
+            console.log(`   ❌ Response'da HTTP URL bulunamadı`);
             console.log(`   Body preview: ${body.substring(0, 200)}...`);
         }
 
-        console.log(`\n📊 Sheila'dan ${streams.length} stream bulundu`);
+        console.log(`\n📊 ${purpose === 'king-sheila' ? 'Sheila' : 'Molystream'}'dan ${streams.length} stream bulundu`);
         return { streams };
     }
 

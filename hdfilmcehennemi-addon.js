@@ -715,4 +715,3 @@ module.exports = {
     processFetchResult
 };
 
-
