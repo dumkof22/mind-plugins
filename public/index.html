@@ -326,7 +326,7 @@
                 </div>
                 <div class="info-item">
                     <strong>Toplam Addon:</strong>
-                    <span id="addonCount">10</span>
+                    <span id="addonCount">12</span>
                 </div>
             </div>
         </div>
@@ -389,6 +389,13 @@
                 features: ['Canlı Maçlar', 'Spor Kanalları', '7/24 Yayın']
             },
             {
+                icon: '🏆',
+                name: 'SporCafe',
+                addonId: 'sporcafe',
+                description: 'Canlı spor yayınları ve maç izleme platformu. Futbol, basketbol ve diğer spor dalları.',
+                features: ['Canlı Maçlar', 'Spor Kanalları', 'HD Yayın']
+            },
+            {
                 icon: '🎌',
                 name: 'AnimeciX',
                 addonId: 'animecix',
@@ -429,6 +436,13 @@
                 addonId: 'hdfilmcehennemi',
                 description: 'HD kalitede film ve dizi izleme platformu. Geniş film arşivi ve güncel içerikler.',
                 features: ['HD/FHD Kalite', 'Geniş Arşiv', 'Hızlı Erişim']
+            },
+            {
+                icon: '🎭',
+                name: 'SelcukFlix',
+                addonId: 'selcukflix',
+                description: 'Film ve dizi izleme platformu. Geniş içerik arşivi ve yüksek kalite.',
+                features: ['HD Kalite', 'Geniş Arşiv', 'Türkçe Dublaj']
             }
         ];
 
@@ -447,7 +461,7 @@
 
         addonsData.forEach(addon => {
             const manifestUrl = `${baseUrl}/api/addon/${addon.addonId}/manifest.json`;
-            const MindUrl = `mind://${hostname}${port ? ':' + port : ''}/api/addon/${addon.addonId}/manifest.json`;
+            const MindUrl = manifestUrl.replace(/^https?:\/\//, 'mind://');
 
             const card = document.createElement('div');
             card.className = 'addon-card';
