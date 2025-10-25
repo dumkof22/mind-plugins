@@ -5,6 +5,7 @@ const animecix = require('./animecix-addon');
 const belgeselx = require('./belgeselx-addon');
 const canlitv = require('./canlitv-addon');
 const cizgimax = require('./cizgimax-addon');
+const cizgivedizi = require('./cizgivedizi-addon');
 const dizibox = require('./dizibox-addon');
 const hdfilmcehennemi = require('./hdfilmcehennemi-addon');
 const videoExtractors = require('./video-extractors');
@@ -17,6 +18,7 @@ module.exports = {
         belgeselx,
         canlitv,
         cizgimax,
+        cizgivedizi,
         dizibox,
         hdfilmcehennemi
     },
@@ -31,6 +33,7 @@ module.exports = {
             belgeselx.getManifest(),
             canlitv.getManifest(),
             cizgimax.getManifest(),
+            cizgivedizi.getManifest(),
             dizibox.getManifest(),
             hdfilmcehennemi.getManifest()
         ];
@@ -43,6 +46,7 @@ module.exports = {
             'community.belgeselx': belgeselx,
             'community.canlitv': canlitv,
             'community.cizgimax': cizgimax,
+            'community.cizgivedizi': cizgivedizi,
             'community.dizibox': dizibox,
             'community.hdfilmcehennemi': hdfilmcehennemi
         };
@@ -77,6 +81,8 @@ module.exports = {
             return await belgeselx.processFetchResult(fetchResult);
         } else if (requestId.includes('canlitv')) {
             return await canlitv.processFetchResult(fetchResult);
+        } else if (requestId.includes('cizgivedizi')) {
+            return await cizgivedizi.processFetchResult(fetchResult);
         } else if (requestId.includes('cizgimax') || requestId.includes('cizgi')) {
             return await cizgimax.processFetchResult(fetchResult);
         } else if (requestId.includes('dizibox')) {

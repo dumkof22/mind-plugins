@@ -1,6 +1,9 @@
-// CanliTV - M3U8 Parser ile Canlı TV Eklentisi
+// ============ CanliTV - M3U8 Playlist Tabanlı Canlı TV Eklentisi ============
+// Bu eklenti GitHub'daki M3U8 playlist'inden canlı TV kanallarını çeker
+// DiziPal instruction mode sistemine uygun olarak geliştirilmiştir
+// =============================================================================
 
-// M3U8 Parser
+// M3U8 Parser - IPTV playlist formatını parse eder
 class IptvPlaylistParser {
     parseM3U(content) {
         const lines = content.split('\n');
@@ -11,7 +14,6 @@ class IptvPlaylistParser {
 
         const items = [];
         let currentItem = null;
-        let currentHeaders = {};
 
         for (let i = 1; i < lines.length; i++) {
             const line = lines[i].trim();
@@ -126,9 +128,9 @@ class IptvPlaylistParser {
 // Manifest tanımı
 const manifest = {
     id: 'community.canlitv',
-    version: '1.0.0',
+    version: '1.1.0',
     name: 'CanliTV',
-    description: 'Türkçe canlı TV kanalları - M3U8 playlist tabanlı Stremio eklentisi',
+    description: 'Türkçe canlı TV kanalları - M3U8 playlist tabanlı Stremio eklentisi (Instruction Mode)',
     resources: ['catalog', 'meta', 'stream'],
     types: ['tv'],
     catalogs: [
@@ -141,9 +143,10 @@ const manifest = {
         {
             type: 'tv',
             id: 'canlitv_search',
-            name: 'Arama',
+            name: 'Kanal Ara',
             extra: [
-                { name: 'search', isRequired: true }
+                { name: 'search', isRequired: true },
+                { name: 'skip', isRequired: false }
             ]
         }
     ],
@@ -151,6 +154,23 @@ const manifest = {
 };
 
 const PLAYLIST_URL = 'https://raw.githubusercontent.com/feroxx/test/refs/heads/main/Kanallar/canlitv.m3u';
+
+// Enhanced headers - DiziPal standardına uygun
+function getEnhancedHeaders(referer = PLAYLIST_URL) {
+    return {
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+        'Sec-Ch-Ua': '"Chromium";v="134", "Not)A;Brand";v="24", "Google Chrome";v="134"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0'
+    };
+}
 
 // ============ INSTRUCTION HANDLERS ============
 
@@ -162,23 +182,23 @@ async function handleCatalog(args) {
     const searchQuery = args.extra?.search;
     const randomId = Math.random().toString(36).substring(2, 10);
 
-    const requestId = `canlitv-playlist-${Date.now()}-${randomId}`;
+    const requestId = `canlitv-playlist-${catalogId}-${Date.now()}-${randomId}`;
     return {
         instructions: [{
             requestId,
             purpose: searchQuery ? 'catalog_search' : 'catalog',
             url: PLAYLIST_URL,
             method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            metadata: { searchQuery }
+            headers: getEnhancedHeaders(PLAYLIST_URL),
+            metadata: { catalogId, searchQuery }
         }]
     };
 }
 
 async function handleMeta(args) {
     const dataJson = Buffer.from(args.id.replace('canlitv:', ''), 'base64').toString('utf-8');
+
+    console.log(`📺 [CanliTV Meta] Generating instructions for channel data...`);
 
     const randomId = Math.random().toString(36).substring(2, 10);
     const requestId = `canlitv-meta-${Date.now()}-${randomId}`;
@@ -189,9 +209,7 @@ async function handleMeta(args) {
             purpose: 'meta',
             url: PLAYLIST_URL,
             method: 'GET',
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
+            headers: getEnhancedHeaders(PLAYLIST_URL),
             metadata: { channelData: dataJson }
         }]
     };
@@ -201,28 +219,57 @@ async function handleStream(args) {
     const dataJson = Buffer.from(args.id.replace('canlitv:', ''), 'base64').toString('utf-8');
     const channelData = JSON.parse(dataJson);
 
-    console.log('\n🎯 [CanliTV Stream] Direct stream data:', channelData);
+    console.log('\n🎬 [CanliTV Stream] Direct stream data:', channelData);
+    console.log(`   Channel: ${channelData.title}`);
+    console.log(`   Group: ${channelData.group}`);
+    console.log(`   URL: ${channelData.url?.substring(0, 80)}...`);
 
-    // Direkt stream bilgisi döndür
+    // Direkt stream bilgisi döndür (M3U8 playlist'inden alınan URL)
     const streams = [{
         name: 'CanliTV',
-        title: channelData.title,
+        title: `${channelData.title} - ${channelData.group}`,
         url: channelData.url,
         type: 'm3u8',
         behaviorHints: {
-            notWebReady: false
+            notWebReady: false // Direkt m3u8, oynatılabilir
         }
     }];
 
+    console.log(`✅ ${streams.length} stream returned`);
     return { streams };
 }
 
 // ============ FETCH RESULT PROCESSOR ============
 
 async function processFetchResult(fetchResult) {
-    const { purpose, body, url } = fetchResult;
+    const { purpose, body, url, metadata } = fetchResult;
 
     console.log(`\n⚙️ [CanliTV Process] Purpose: ${purpose}`);
+    console.log(`   URL: ${url?.substring(0, 80)}...`);
+
+    // ========== ERROR DETECTION ==========
+    if (body && typeof body === 'string') {
+        // GitHub rate limit veya erişim hatası kontrolü
+        if (body.includes('rate limit') ||
+            body.includes('404') ||
+            body.includes('Not Found') ||
+            body.length < 100) {
+            console.log('⚠️ Playlist erişim hatası!');
+            console.log(`   Response size: ${body.length} bytes`);
+            console.log('   Olası sebepler:');
+            console.log('   1. GitHub rate limit');
+            console.log('   2. Playlist dosyası taşınmış/silinmiş');
+            console.log('   3. İnternet bağlantı sorunu');
+
+            // Return empty but don't crash
+            if (purpose === 'catalog' || purpose === 'catalog_search') {
+                return { metas: [] };
+            }
+            if (purpose === 'meta') {
+                return { meta: null };
+            }
+        }
+    }
 
     try {
         const parser = new IptvPlaylistParser();
@@ -234,6 +281,9 @@ async function processFetchResult(fetchResult) {
             const grouped = {};
 
             playlist.items.forEach(channel => {
+                // URL olmayan kanalları atla
+                if (!channel.url) return;
+
                 const group = channel.attributes['group-title'] || 'Diğer';
                 if (!grouped[group]) {
                     grouped[group] = [];
@@ -273,10 +323,13 @@ async function processFetchResult(fetchResult) {
 
         // Catalog Search
         if (purpose === 'catalog_search') {
-            const searchQuery = (fetchResult.metadata.searchQuery || '').toLowerCase();
+            const searchQuery = (metadata?.searchQuery || '').toLowerCase();
             const metas = [];
 
             playlist.items.forEach(channel => {
+                // URL olmayan kanalları atla
+                if (!channel.url) return;
+
                 if (channel.title && channel.title.toLowerCase().includes(searchQuery)) {
                     const channelData = {
                         url: channel.url,
@@ -305,12 +358,15 @@ async function processFetchResult(fetchResult) {
 
         // Meta
         if (purpose === 'meta') {
-            const channelData = JSON.parse(fetchResult.metadata.channelData);
+            const channelData = JSON.parse(metadata.channelData);
 
             // Aynı gruptaki kanalları recommendations olarak bul
             const recommendations = [];
 
             playlist.items.forEach(channel => {
+                // URL olmayan kanalları atla
+                if (!channel.url) return;
+
                 const chGroup = channel.attributes['group-title'] || 'Diğer';
 
                 if (chGroup === channelData.group && channel.title !== channelData.title) {
@@ -338,7 +394,7 @@ async function processFetchResult(fetchResult) {
                 : `» ${channelData.group} | ${channelData.nation} «`;
 
             const meta = {
-                id: fetchResult.requestId.includes('canlitv:') ? fetchResult.requestId : 'canlitv:' + Buffer.from(fetchResult.metadata.channelData).toString('base64').replace(/=/g, ''),
+                id: fetchResult.requestId.includes('canlitv:') ? fetchResult.requestId : 'canlitv:' + Buffer.from(metadata.channelData).toString('base64').replace(/=/g, ''),
                 type: 'tv',
                 name: channelData.title,
                 poster: channelData.poster,
@@ -353,8 +409,16 @@ async function processFetchResult(fetchResult) {
         }
 
     } catch (e) {
-        console.log('⚠️  Playlist parse error:', e.message);
-        return { metas: [] };
+        console.log('❌ Playlist parse error:', e.message);
+        console.log('   Stack:', e.stack);
+
+        // Return empty but don't crash
+        if (purpose === 'catalog' || purpose === 'catalog_search') {
+            return { metas: [] };
+        }
+        if (purpose === 'meta') {
+            return { meta: null };
+        }
     }
 
     return { ok: true };

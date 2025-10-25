@@ -1,4 +1,5 @@
 const cheerio = require('cheerio');
+const crypto = require('crypto');
 
 // Manifest tanımı
 const manifest = {
@@ -380,11 +381,34 @@ async function processFetchResult(fetchResult) {
                 const bePlayerPass = bePlayerMatch[1];
                 const bePlayerData = bePlayerMatch[2];
 
-                // AES decryption gerekiyor - ancak instruction sisteminde CryptoJS yok
-                // Bu durumda farklı bir yaklaşım gerekir veya client-side decrypt edilmeli
-                console.log(`⚠️  ${streamName}: AES decryption required - not supported in instruction mode`);
-                console.log(`   bePlayerPass: ${bePlayerPass}`);
-                console.log(`   bePlayerData: ${bePlayerData.substring(0, 50)}...`);
+                // AES Decryption (Kotlin AesHelper.cryptoAESHandler ile aynı)
+                const key = Buffer.from(bePlayerPass, 'utf-8');
+                const decipher = crypto.createDecipheriv('aes-128-cbc', key.slice(0, 16), Buffer.alloc(16, 0));
+                decipher.setAutoPadding(true);
+                
+                let decrypted = decipher.update(bePlayerData, 'base64', 'utf8');
+                decrypted += decipher.final('utf8');
+                decrypted = decrypted.replace(/\\/g, '');
+
+                console.log(`✅ ${streamName}: Decrypted data`);
+
+                const m3uMatch = decrypted.match(/video_location":"([^"]+)"/);
+                if (m3uMatch) {
+                    const m3uUrl = m3uMatch[1];
+
+                    streams.push({
+                        name: streamName,
+                        title: streamName,
+                        url: m3uUrl,
+                        behaviorHints: {
+                            notWebReady: false
+                        }
+                    });
+
+                    console.log(`✅ ${streamName}: URL extracted - ${m3uUrl.substring(0, 60)}...`);
+                } else {
+                    console.log(`⚠️  ${streamName}: No video_location found in decrypted data`);
+                }
             }
         } catch (e) {
             console.log(`⚠️  ${streamName} extraction error:`, e.message);
@@ -393,34 +417,35 @@ async function processFetchResult(fetchResult) {
         return { streams };
     }
 
-    // Google Drive Extractor
+    // Google Drive Extractor (gdplayer.vip API kullanarak - Kotlin ile aynı)
     if (purpose === 'extract_drive') {
         const streams = [];
         const streamName = fetchResult.metadata?.streamName || 'Google Drive';
 
         try {
-            const docId = url.match(/file\/d\/([^/]+)\/preview/)?.[1];
+            const urlId = url.match(/\/d\/([^/]+)\//)?.[1];
 
-            if (docId) {
+            if (urlId) {
                 const randomId = Math.random().toString(36).substring(2, 10);
-                const requestId = `drive-video-info-${Date.now()}-${randomId}`;
+                const requestId = `drive-gdplayer-${Date.now()}-${randomId}`;
 
                 return {
                     instructions: [{
                         requestId,
-                        purpose: 'extract_drive_video',
-                        url: `https://drive.google.com/get_video_info?docid=${docId}&drive_originator_app=303`,
-                        method: 'GET',
+                        purpose: 'extract_drive_gdplayer',
+                        url: 'https://gdplayer.vip/api/video',
+                        method: 'POST',
                         headers: {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                            'Referer': url
+                            'Content-Type': 'application/x-www-form-urlencoded'
                         },
-                        metadata: { streamName, docId }
+                        body: `file_id=${urlId}&subtitle=`,
+                        metadata: { streamName, urlId }
                     }]
                 };
             }
 
-            console.log('⚠️  Drive: No docId found');
+            console.log('⚠️  Drive: No urlId found');
         } catch (e) {
             console.log('⚠️  Drive extraction error:', e.message);
         }
@@ -428,33 +453,117 @@ async function processFetchResult(fetchResult) {
         return { streams };
     }
 
-    // Google Drive Video Info
-    if (purpose === 'extract_drive_video') {
+    // Google Drive - gdplayer.vip API response
+    if (purpose === 'extract_drive_gdplayer') {
         const streams = [];
         const streamName = fetchResult.metadata?.streamName || 'Google Drive';
 
         try {
-            const fmtMatch = body.match(/&fmt_stream_map=(.*)&url_encoded_fmt_stream_map/);
+            const data = JSON.parse(body);
+            const embedUrl = data.data?.embed_url;
 
-            if (fmtMatch) {
-                const decoded = decodeURIComponent(fmtMatch[1]);
-                const m3uLink = decoded.split('|').pop();
+            if (embedUrl) {
+                const randomId = Math.random().toString(36).substring(2, 10);
+                const requestId = `drive-embed-${Date.now()}-${randomId}`;
+
+                return {
+                    instructions: [{
+                        requestId,
+                        purpose: 'extract_drive_embed',
+                        url: embedUrl,
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Referer': 'https://gdplayer.vip/'
+                        },
+                        metadata: { streamName }
+                    }]
+                };
+            }
+
+            console.log('⚠️  Drive: No embed_url found in API response');
+        } catch (e) {
+            console.log('⚠️  Drive gdplayer API error:', e.message);
+        }
+
+        return { streams };
+    }
+
+    // Google Drive - Parse embed page and get video URLs
+    if (purpose === 'extract_drive_embed') {
+        const streams = [];
+        const streamName = fetchResult.metadata?.streamName || 'Google Drive';
+
+        try {
+            const $ = cheerio.load(body);
+            const ngInit = $('body[ng-init]').attr('ng-init');
+
+            if (ngInit) {
+                const initMatch = ngInit.match(/init\('([^']+)',\s*'([^']+)',\s*'([^']+)',\s*'([^']*)'\)/);
+
+                if (initMatch) {
+                    const playUrl = initMatch[2];
+                    const keyHex = initMatch[3];
+
+                    const randomId = Math.random().toString(36).substring(2, 10);
+                    const requestId = `drive-qualities-${Date.now()}-${randomId}`;
+
+                    return {
+                        instructions: [{
+                            requestId,
+                            purpose: 'extract_drive_qualities',
+                            url: `${playUrl}/?video_id=${keyHex}&action=get_video`,
+                            method: 'GET',
+                            headers: {
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                                'Referer': 'https://gdplayer.vip/'
+                            },
+                            metadata: { streamName, playUrl, keyHex }
+                        }]
+                    };
+                }
+            }
+
+            console.log('⚠️  Drive: No ng-init found in embed page');
+        } catch (e) {
+            console.log('⚠️  Drive embed parse error:', e.message);
+        }
+
+        return { streams };
+    }
+
+    // Google Drive - Extract quality URLs
+    if (purpose === 'extract_drive_qualities') {
+        const streams = [];
+        const streamName = fetchResult.metadata?.streamName || 'Google Drive';
+        const playUrl = fetchResult.metadata?.playUrl;
+        const keyHex = fetchResult.metadata?.keyHex;
+
+        try {
+            const data = JSON.parse(body);
+            const qualities = data.qualities || [];
+
+            qualities.forEach(q => {
+                const quality = q.quality;
+                const videoUrl = `${playUrl}/?video_id=${keyHex}&quality=${quality}&action=p`;
 
                 streams.push({
-                    name: streamName,
-                    title: streamName,
-                    url: m3uLink,
+                    name: `${streamName} ${quality}p`,
+                    title: `${streamName} ${quality}p`,
+                    url: videoUrl,
                     behaviorHints: {
                         notWebReady: false
                     }
                 });
 
-                console.log(`✅ Drive: URL extracted - ${m3uLink.substring(0, 60)}...`);
-            } else {
-                console.log('⚠️  Drive: No fmt_stream_map found');
+                console.log(`✅ Drive: ${quality}p URL extracted`);
+            });
+
+            if (streams.length === 0) {
+                console.log('⚠️  Drive: No qualities found');
             }
         } catch (e) {
-            console.log('⚠️  Drive video info error:', e.message);
+            console.log('⚠️  Drive qualities error:', e.message);
         }
 
         return { streams };

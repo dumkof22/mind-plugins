@@ -44,6 +44,7 @@ const addonModules = {
     'belgeselx': require('./belgeselx-addon.js'),
     'canlitv': require('./canlitv-addon.js'),
     'cizgimax': require('./cizgimax-addon.js'),
+    'cizgivedizi': require('./cizgivedizi-addon.js'),
     'dizibox': require('./dizibox-addon.js'),
     'hdfilmcehennemi': require('./hdfilmcehennemi-addon.js'),
     'selcukflix': require('./selcukflix.js')
@@ -73,7 +74,7 @@ console.log(`📦 Loaded ${Object.keys(addonModules).length} addon(s):\n`);
 const addonCategories = {
     '🎬 Film & Dizi': ['fullhdfilmizlesene', 'hdfilmcehennemi', 'dizibox', 'dizipal', 'selcukflix'],
     '🎌 Anime': ['animecix'],
-    '🎨 Çizgi Film': ['cizgimax'],
+    '🎨 Çizgi Film': ['cizgimax', 'cizgivedizi'],
     '📚 Belgesel': ['belgeselx'],
     '📺 Canlı TV': ['inatbox', 'canlitv'],
     '⚽ Spor': ['selcuksports', 'sporcafe']
@@ -117,7 +118,7 @@ app.get('/api/addons/categories', (req, res) => {
     const categories = {
         '🎬 Film & Dizi': ['fullhdfilmizlesene', 'hdfilmcehennemi', 'dizibox', 'dizipal', 'selcukflix'],
         '🎌 Anime': ['animecix'],
-        '🎨 Çizgi Film': ['cizgimax'],
+        '🎨 Çizgi Film': ['cizgimax', 'cizgivedizi'],
         '📚 Belgesel': ['belgeselx'],
         '📺 Canlı TV': ['inatbox', 'canlitv'],
         '⚽ Spor': ['selcuksports', 'sporcafe'],
