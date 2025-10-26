@@ -55,7 +55,7 @@ const manifest = {
     idPrefixes: ['selcukshd']
 };
 
-const BASE_URL = 'https://www.selcuksportshd0fa6d0b304.xyz';
+const BASE_URL = 'https://www.selcuksportshd39d2c90818.xyz';
 const PLAYER_BASE_URL = 'https://main.uxsyplayerb03b3c895b.click/index.php?id=';
 
 // Kanal kategorilerine göre regex filtreleme
@@ -396,4 +396,5 @@ module.exports = {
     handleStream,
     processFetchResult
 };
+
 
