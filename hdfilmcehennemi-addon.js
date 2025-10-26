@@ -573,6 +573,33 @@ async function processFetchResult(fetchResult) {
         const subtitles = [];
 
         try {
+            // ÖNCE: Body'den direkt tracks bilgisini al (unpacked'den önce)
+            const tracksMatch = body.match(/tracks\s*:\s*(\[[\s\S]*?\])/);
+            if (tracksMatch) {
+                try {
+                    console.log(`🎯 Found tracks in body: ${tracksMatch[1].substring(0, 200)}...`);
+                    
+                    // JSON parse et
+                    const tracksData = JSON.parse(tracksMatch[1]);
+                    tracksData.filter(t => t.kind === 'captions' || t.kind === 'subtitles').forEach(track => {
+                        if (track.file) {
+                            const subUrl = track.file.startsWith('http') ? track.file : `${BASE_URL}${track.file}`;
+                            subtitles.push({
+                                id: (track.language || 'tr').toLowerCase(),
+                                url: subUrl,
+                                lang: track.label || track.language || 'Türkçe'
+                            });
+                        }
+                    });
+                    
+                    if (subtitles.length > 0) {
+                        console.log(`✅ Found ${subtitles.length} subtitle(s) from tracks`);
+                    }
+                } catch (e) {
+                    console.log('⚠️  Tracks parse error:', e.message);
+                }
+            }
+            
             // Script içindeki sources bölümünü bul
             const scriptMatch = body.match(/<script[^>]*>(.*?sources:.*?)<\/script>/s);
 
@@ -649,29 +676,6 @@ async function processFetchResult(fetchResult) {
                 }
 
                 if (finalUrl && finalUrl.startsWith('http')) {
-                    // Subtitles parse et
-                    const tracksMatch = unpacked.match(/tracks\s*:\s*\[(.*?)\]/s);
-                    if (tracksMatch) {
-                        try {
-                            // JSON parse için düzelt
-                            let subData = tracksMatch[1];
-                            console.log(`📝 Raw subtitle data: ${subData}`);
-
-                            const subArray = JSON.parse(`[${subData}]`);
-                            subArray.filter(s => s.kind === 'captions').forEach(sub => {
-                                if (sub.file && sub.language) {
-                                    subtitles.push({
-                                        lang: sub.language,
-                                        url: `${BASE_URL}${sub.file}/`
-                                    });
-                                }
-                            });
-                            console.log(`📝 Found ${subtitles.length} subtitle(s)`);
-                        } catch (e) {
-                            console.log('⚠️  Subtitle parse error:', e.message);
-                        }
-                    }
-
                     streams.push({
                         name: streamName,
                         title: streamName,
