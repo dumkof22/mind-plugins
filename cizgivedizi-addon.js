@@ -188,15 +188,15 @@ function urlCreate(metin) {
         "/": "",
         "\\?": ""  // ? karakterini escape et
     };
-    
+
     metin = metin.toLowerCase();
-    
+
     for (const harf in harfler) {
         // Regex özel karakterlerini escape et
         const escapedHarf = harf.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         metin = metin.replace(new RegExp(escapedHarf, 'g'), harfler[harf]);
     }
-    
+
     metin = metin.replace(/ /g, "_");
     return metin;
 }
@@ -260,8 +260,8 @@ async function handleCatalog(args) {
                     ...getEnhancedHeaders(BASE_URL),
                     'Accept-Charset': 'utf-8'  // UTF-8 encoding belirt
                 },
-                metadata: { 
-                    catalogId, 
+                metadata: {
+                    catalogId,
                     searchQuery,
                     // Diğer dosyaların URL'leri
                     additionalUrls: {
@@ -272,19 +272,19 @@ async function handleCatalog(args) {
             }]
         };
     }
-    
+
     // Normal catalog - etiket bazlı
     const tagCode = CATALOG_TAG_MAP[catalogId];
-    
+
     if (!tagCode) {
         console.log(`❌ Katalog için etiket kodu bulunamadı: ${catalogId}`);
         return { instructions: [] };
     }
 
     const requestId = `cizgivedizi-catalog-${catalogId}-${Date.now()}-${randomId}`;
-    
+
     console.log(`   Etiket kodu: ${tagCode}`);
-    
+
     // Tek instruction ile tüm dosyaları çekeceğiz
     return {
         instructions: [{
@@ -296,8 +296,8 @@ async function handleCatalog(args) {
                 ...getEnhancedHeaders(BASE_URL),
                 'Accept-Charset': 'utf-8'  // UTF-8 encoding belirt
             },
-            metadata: { 
-                catalogId, 
+            metadata: {
+                catalogId,
                 tagCode,
                 // Diğer dosyaların URL'leri
                 additionalUrls: {
@@ -315,13 +315,16 @@ async function handleMeta(args) {
 
     console.log(`📺 [CizgiveDizi Meta] Generating instructions for: ${url.substring(0, 80)}...`);
 
+    // URL'i encode et (Türkçe karakterler için)
+    const encodedUrl = encodeURI(url);
+
     const randomId = Math.random().toString(36).substring(2, 10);
     const requestId = `cizgivedizi-meta-${Date.now()}-${randomId}`;
     return {
         instructions: [{
             requestId,
             purpose: 'meta',
-            url: url,
+            url: encodedUrl,
             method: 'GET',
             headers: getEnhancedHeaders(BASE_URL)
         }]
@@ -334,15 +337,18 @@ async function handleStream(args) {
 
     console.log(`🎬 [CizgiveDizi Stream] Generating instructions for: ${url.substring(0, 80)}...`);
 
+    // URL'i encode et (Türkçe karakterler için)
+    const encodedUrl = encodeURI(url);
+
     const randomId = Math.random().toString(36).substring(2, 10);
     const requestId = `cizgivedizi-stream-${Date.now()}-${randomId}`;
     return {
         instructions: [{
             requestId,
             purpose: 'stream',
-            url: url,
+            url: encodedUrl,
             method: 'GET',
-            headers: getEnhancedHeaders(url)
+            headers: getEnhancedHeaders(encodedUrl)  // Encode edilmiş URL'i referer olarak kullan
         }]
     };
 }
@@ -358,7 +364,7 @@ async function processFetchResult(fetchResult) {
     // HTTP hata kontrolü
     if (status && status !== 200) {
         console.log(`❌ [HTTP Error ${status}] Purpose: ${purpose}`);
-        
+
         if (purpose === 'catalog') {
             return { metas: [] };
         } else if (purpose === 'meta') {
@@ -366,17 +372,17 @@ async function processFetchResult(fetchResult) {
         } else if (purpose.includes('stream')) {
             return { streams: [] };
         }
-        
+
         return { ok: false, error: `HTTP ${status}` };
     }
 
     // Catalog - İlk dosya (isim.txt) geldi, diğer dosyaları da çek ve birleştir
     if (purpose === 'catalog-data') {
         console.log(`   📄 İsim dosyası parse ediliyor...`);
-        
+
         // Body'nin encoding'ini kontrol et ve düzelt
         let fixedBody = body;
-        
+
 
         // Eğer body Buffer ise, UTF-8 olarak decode et
         if (Buffer.isBuffer(body)) {
@@ -392,18 +398,18 @@ async function processFetchResult(fetchResult) {
                 fixedBody = body;
             }
         }
-        
+
         // İsim dosyasını parse et
         const lines = fixedBody.split('\n').filter(line => line.trim().startsWith('|'));
         const isimData = {};
-        
+
         for (const line of lines) {
             const match = line.match(/^\|([^=]+)=(.+)$/);
             if (match) {
                 const key = match[1].trim();
                 const value = match[2].trim();
                 isimData[key] = value;
-                
+
                 // Debug: "west" key'i için encoding kontrolü
                 if (key === 'west') {
                     console.log(`   🔍 DEBUG west: "${value}"`);
@@ -411,20 +417,20 @@ async function processFetchResult(fetchResult) {
                 }
             }
         }
-        
+
         console.log(`   ✅ ${Object.keys(isimData).length} dizi ismi parse edildi`);
-        
+
         // Diğer dosyaları da fetch et
         const additionalUrls = metadata?.additionalUrls || {};
-        
+
         try {
             console.log(`   📄 Poster ve etiket dosyaları çekiliyor...`);
-            
+
             const [posterBody, etiketBody] = await Promise.all([
                 fetchUrl(additionalUrls.poster),
                 fetchUrl(additionalUrls.etiket)
             ]);
-            
+
             // Poster dosyasını parse et
             const posterData = {};
             posterBody.split('\n').filter(line => line.trim().startsWith('|')).forEach(line => {
@@ -433,7 +439,7 @@ async function processFetchResult(fetchResult) {
                     posterData[match[1].trim()] = match[2].trim();
                 }
             });
-            
+
             // Etiket dosyasını parse et
             const etiketData = {};
             etiketBody.split('\n').filter(line => line.trim().startsWith('|')).forEach(line => {
@@ -442,25 +448,25 @@ async function processFetchResult(fetchResult) {
                     etiketData[match[1].trim()] = match[2].trim();
                 }
             });
-            
+
             console.log(`   ✅ ${Object.keys(posterData).length} poster parse edildi`);
             console.log(`   ✅ ${Object.keys(etiketData).length} etiket parse edildi`);
-            
+
             // Tüm veriyi birleştir ve filtrele
             const tagCode = metadata?.tagCode;
             const searchQuery = metadata?.searchQuery;
             const metas = [];
-            
+
             for (const diziKey in isimData) {
                 const diziIsim = isimData[diziKey];
                 const diziPoster = posterData[diziKey];
                 const diziEtiketler = (etiketData[diziKey] || '').split(';');
-                
+
                 // Etiket filtresi (search değilse)
                 if (tagCode && !diziEtiketler.includes(tagCode)) {
                     continue;
                 }
-                
+
                 // Search filtresi (search ise)
                 if (searchQuery) {
                     const normalizedQuery = normalizeString(searchQuery.toLowerCase());
@@ -469,13 +475,13 @@ async function processFetchResult(fetchResult) {
                         continue;
                     }
                 }
-                
+
                 // URL oluştur - Türkçe karakterler için encode
                 const diziUrlPart = urlCreate(diziIsim);
                 const diziUrl = `${BASE_URL}/dizi/${diziKey}/${diziUrlPart}`;
                 // Base64 encode ederken UTF-8 olarak encode et
                 const id = 'cizgivedizi:' + Buffer.from(diziUrl, 'utf8').toString('base64').replace(/=/g, '');
-                
+
                 // Debug: "west" için URL kontrolü
                 if (diziKey === 'west') {
                     console.log(`   🔍 DEBUG URL oluşturma:`);
@@ -484,7 +490,7 @@ async function processFetchResult(fetchResult) {
                     console.log(`      Full URL: "${diziUrl}"`);
                     console.log(`      ID (base64): "${id.substring(0, 80)}..."`);
                 }
-                
+
                 metas.push({
                     id: id,
                     type: 'series',
@@ -492,10 +498,10 @@ async function processFetchResult(fetchResult) {
                     poster: fixImageFormat(diziPoster)
                 });
             }
-            
+
             console.log(`   ✅ ${metas.length} içerik bulundu (${tagCode || searchQuery})`);
             return { metas };
-            
+
         } catch (error) {
             console.log(`   ❌ Dosya fetch hatası: ${error.message}`);
             return { metas: [] };
@@ -504,9 +510,9 @@ async function processFetchResult(fetchResult) {
 
     if (purpose === 'meta') {
         const $ = cheerio.load(body);
-        
+
         console.log('\n📺 [META] Dizi sayfası parse ediliyor...');
-        
+
         // Başlık - .infoLine içindeki h4'ten al (asıl başlık orada)
         let title = $('.infoLine h4').first().text().trim();
         if (!title) {
@@ -521,9 +527,9 @@ async function processFetchResult(fetchResult) {
             console.log('❌ Dizi başlığı bulunamadı veya yanlış başlık');
             return { meta: null };
         }
-        
+
         console.log(`   📌 Başlık: ${title}`);
-        
+
         // Poster - picture img veya ilk img
         let rawPoster = $('picture img').attr('src');
         if (!rawPoster) {
@@ -533,7 +539,7 @@ async function processFetchResult(fetchResult) {
             rawPoster = rawPoster.startsWith('/') ? `${BASE_URL}${rawPoster}` : `${BASE_URL}/${rawPoster}`;
         }
         const poster = fixImageFormat(rawPoster);
-        
+
         // Açıklama - p.lead etiketinden al (daha spesifik)
         let plot = $('p.lead').first().text().trim();
         if (!plot) {
@@ -546,7 +552,7 @@ async function processFetchResult(fetchResult) {
                 }
             });
         }
-        
+
         // Etiketler/Türler - data-bs-title attribute'larından al
         const tags = [];
         $('[data-bs-title]').each((i, elem) => {
@@ -555,7 +561,7 @@ async function processFetchResult(fetchResult) {
                 tags.push(tag);
             }
         });
-        
+
         // Bölümleri topla - a.bolum elementlerinden
         const videos = [];
         $('a.bolum').each((i, elem) => {
@@ -563,25 +569,25 @@ async function processFetchResult(fetchResult) {
             const dataSezon = $(elem).attr('data-sezon');
             // title attribute'unu al ve HTML entities'leri decode et
             let title_attr = $(elem).attr('title') || $(elem).attr('data-bs-title');
-            
+
             if (!href) return;
-            
+
             // URL'den bölüm numarasını çıkar
             // Format: /dizi/west/vahsi_bati/1/bolum_1
             const urlParts = href.split('/');
             const episodeNum = urlParts[urlParts.length - 2]; // Son önceki part bölüm numarası
             const episodeName = urlParts[urlParts.length - 1]; // Son part bölüm ismi
-            
+
             let episode = parseInt(episodeNum);
             if (isNaN(episode)) episode = i + 1;
-            
+
             let season = parseInt(dataSezon);
             if (isNaN(season) || !season) season = 1;
-            
+
             // Bölüm başlığı ve açıklaması
             let epTitle = '';
             let epDescription = '';
-            
+
             if (title_attr) {
                 // HTML entities decode et (cheerio otomatik yapar)
                 epDescription = title_attr;
@@ -591,27 +597,27 @@ async function processFetchResult(fetchResult) {
             } else {
                 epTitle = `${episode}. Bölüm`;
             }
-            
+
             const fullUrl = href.startsWith('http') ? href : `${BASE_URL}${href}`;
             const videoId = 'cizgivedizi:' + Buffer.from(fullUrl).toString('base64').replace(/=/g, '');
-            
+
             const videoObj = {
                 id: videoId,
                 title: epTitle,
                 season: season,
                 episode: episode
             };
-            
+
             // Açıklama varsa ekle
             if (epDescription) {
                 videoObj.overview = epDescription;
             }
-            
+
             videos.push(videoObj);
         });
-        
+
         console.log(`   ✅ ${videos.length} bölüm bulundu`);
-        
+
         return {
             meta: {
                 id: 'cizgivedizi:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
@@ -629,36 +635,36 @@ async function processFetchResult(fetchResult) {
     if (purpose === 'stream') {
         const $ = cheerio.load(body);
         const streams = [];
-        
+
         console.log('\n🎬 [STREAM DETECTION] CizgiveDizi stream aranıyor...');
-        
+
         // Play sayfasını veya iframe'i bul
         let playUrl = $('a[href*="/play"]').attr('href');
         if (!playUrl) {
             playUrl = $('iframe').first().attr('src');
         }
-        
+
         if (!playUrl) {
             console.log('❌ Play URL veya iframe bulunamadı');
             return { streams: [] };
         }
-        
+
         const fullPlayUrl = playUrl.startsWith('http') ? playUrl : `${BASE_URL}${playUrl}`;
-        
+
         console.log(`✅ Play URL bulundu: ${fullPlayUrl.substring(0, 80)}...`);
-        
+
         // Eğer URL zaten bir extractor URL'i ise (SibNet, CizgiDuo vb), direkt extract et
-        if (fullPlayUrl.includes('video.sibnet.ru') || 
-            fullPlayUrl.includes('cizgiduo.online') || 
+        if (fullPlayUrl.includes('video.sibnet.ru') ||
+            fullPlayUrl.includes('cizgiduo.online') ||
             fullPlayUrl.includes('cizgipass') ||
             fullPlayUrl.includes('drive.google.com')) {
-            
+
             console.log('🔧 Direkt extractor URL tespit edildi, işleniyor...');
-            
+
             // Extractor tipini belirle
             let extractorType = 'generic';
             let serverName = 'CizgiveDizi';
-            
+
             if (fullPlayUrl.includes('cizgiduo.online')) {
                 extractorType = 'cizgiduo';
                 serverName = 'CizgiDuo';
@@ -672,15 +678,16 @@ async function processFetchResult(fetchResult) {
                 extractorType = 'sibnet';
                 serverName = 'SibNet';
             }
-            
+
             const randomId = Math.random().toString(36).substring(2, 10);
+            const encodedFullPlayUrl = encodeURI(fullPlayUrl);
             return {
                 instructions: [{
                     requestId: `cizgivedizi-extract-${Date.now()}-${randomId}`,
                     purpose: 'extractor',
-                    url: fullPlayUrl,
+                    url: encodedFullPlayUrl,
                     method: 'GET',
-                    headers: getEnhancedHeaders(url),
+                    headers: getEnhancedHeaders(encodedFullPlayUrl),
                     metadata: {
                         originalUrl: url,
                         extractorType: extractorType,
@@ -689,16 +696,17 @@ async function processFetchResult(fetchResult) {
                 }]
             };
         }
-        
+
         // Play sayfasını fetch et
         const randomId = Math.random().toString(36).substring(2, 10);
+        const encodedFullPlayUrl = encodeURI(fullPlayUrl);
         return {
             instructions: [{
                 requestId: `cizgivedizi-play-${Date.now()}-${randomId}`,
                 purpose: 'play-page',
-                url: fullPlayUrl,
+                url: encodedFullPlayUrl,
                 method: 'GET',
-                headers: getEnhancedHeaders(url),
+                headers: getEnhancedHeaders(encodedFullPlayUrl),
                 metadata: { originalUrl: url }
             }]
         };
@@ -708,9 +716,9 @@ async function processFetchResult(fetchResult) {
         const $ = cheerio.load(body);
         const streams = [];
         const originalUrl = metadata?.originalUrl || url;
-        
+
         console.log('\n🔍 [PLAY PAGE] Extractor URL\'leri aranıyor...');
-        
+
         // Tüm iframe'leri topla
         const iframes = [];
         $('iframe').each((i, elem) => {
@@ -720,24 +728,24 @@ async function processFetchResult(fetchResult) {
                 iframes.push(fullSrc);
             }
         });
-        
+
         console.log(`   ${iframes.length} iframe bulundu`);
-        
+
         if (iframes.length === 0) {
             console.log('❌ Hiçbir iframe bulunamadı');
             return { streams: [] };
         }
-        
+
         // Her iframe için extraction instruction oluştur
         const instructions = [];
         for (let i = 0; i < iframes.length; i++) {
             const iframeUrl = iframes[i];
             const randomId = Math.random().toString(36).substring(2, 10);
-            
+
             // Extractor tipini belirle
             let extractorType = 'generic';
             let serverName = `Server ${i + 1}`;
-            
+
             if (iframeUrl.includes('cizgiduo.online')) {
                 extractorType = 'cizgiduo';
                 serverName = 'CizgiDuo';
@@ -751,15 +759,16 @@ async function processFetchResult(fetchResult) {
                 extractorType = 'sibnet';
                 serverName = 'SibNet';
             }
-            
+
             console.log(`   [${i + 1}] ${serverName}: ${iframeUrl.substring(0, 60)}...`);
-            
+
+            const encodedIframeUrl = encodeURI(iframeUrl);
             instructions.push({
                 requestId: `cizgivedizi-extract-${Date.now()}-${randomId}-${i}`,
                 purpose: 'extractor',
-                url: iframeUrl,
+                url: encodedIframeUrl,
                 method: 'GET',
-                headers: getEnhancedHeaders(originalUrl),
+                headers: getEnhancedHeaders(encodedIframeUrl),
                 metadata: {
                     originalUrl: originalUrl,
                     extractorType: extractorType,
@@ -767,7 +776,7 @@ async function processFetchResult(fetchResult) {
                 }
             });
         }
-        
+
         console.log(`📊 ${instructions.length} extractor instruction oluşturuldu`);
         return { instructions };
     }
@@ -776,37 +785,40 @@ async function processFetchResult(fetchResult) {
         const extractorType = metadata?.extractorType || 'generic';
         const serverName = metadata?.serverName || 'CizgiveDizi';
         const originalUrl = metadata?.originalUrl || url;
-        
+
         console.log(`\n🔧 [EXTRACTOR] ${serverName} (${extractorType}) işleniyor...`);
         console.log(`   URL: ${url.substring(0, 80)}...`);
-        
+
+        // URL'i encode et (Türkçe karakterler için - Flutter decode etmiş olabilir)
+        const encodedUrl = encodeURI(url);
+
         const streams = [];
-        
+
         // ========== CIZGIDUO / CIZGIPASS EXTRACTOR ==========
         if (extractorType === 'cizgiduo' || extractorType === 'cizgipass') {
             console.log('   🔍 bePlayer pattern aranıyor...');
-            
+
             const bePlayerMatch = body.match(/bePlayer\('([^']+)',\s*'(\{[^}]+\})'\);/);
-            
+
             if (bePlayerMatch) {
                 const bePlayerPass = bePlayerMatch[1];
                 const bePlayerData = bePlayerMatch[2];
-                
+
                 console.log(`   ✅ bePlayer bulundu, şifre çözülüyor...`);
                 console.log(`   Password: ${bePlayerPass}`);
-                
+
                 const decrypted = cryptoAESHandler(bePlayerData, Buffer.from(bePlayerPass, 'utf8'), false);
-                
+
                 if (decrypted) {
                     console.log('   ✅ Şifre çözme başarılı');
-                    
+
                     // video_location ara
                     const videoMatch = decrypted.match(/video_location":"([^"]+)/);
-                    
+
                     if (videoMatch) {
                         const m3uUrl = videoMatch[1].replace(/\\/g, '');
                         console.log(`   ✅ M3U8 bulundu: ${m3uUrl.substring(0, 80)}...`);
-                        
+
                         streams.push({
                             name: serverName,
                             title: serverName,
@@ -817,7 +829,7 @@ async function processFetchResult(fetchResult) {
                                 proxyHeaders: {
                                     request: {
                                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                                        'Referer': url
+                                        'Referer': encodedUrl
                                     }
                                 }
                             }
@@ -833,16 +845,16 @@ async function processFetchResult(fetchResult) {
                 console.log('   ❌ bePlayer pattern bulunamadı');
             }
         }
-        
+
         // ========== GOOGLE DRIVE EXTRACTOR ==========
         else if (extractorType === 'googledrive') {
             console.log('   🔍 Google Drive ID çıkarılıyor...');
-            
+
             const urlId = url.split('/d/')[1]?.split('/')[0];
-            
+
             if (urlId) {
                 console.log(`   ✅ Drive ID: ${urlId}`);
-                
+
                 // gdplayer.vip API'sine istek at
                 const randomId = Math.random().toString(36).substring(2, 10);
                 return {
@@ -866,30 +878,32 @@ async function processFetchResult(fetchResult) {
                 console.log('   ❌ Drive ID bulunamadı');
             }
         }
-        
+
         // ========== SIBNET EXTRACTOR ==========
         else if (extractorType === 'sibnet') {
             console.log('   🔍 SibNet player.src pattern aranıyor...');
-            
+
             const sibnetMatch = body.match(/player\.src\(\[\{src:\s*"([^"]+)"/);
-            
+
             if (sibnetMatch) {
                 let m3uUrl = sibnetMatch[1];
-                
+
                 // Relative URL ise tam URL'ye çevir
                 if (!m3uUrl.startsWith('http')) {
                     m3uUrl = `https://video.sibnet.ru${m3uUrl}`;
                 }
-                
+
                 console.log(`   ✅ SibNet M3U8 bulundu: ${m3uUrl.substring(0, 80)}...`);
-                
+
                 // Cevirmen bilgisi varsa (URL'de | ile ayrılmış)
                 let finalName = serverName;
+                let refererUrl = encodedUrl;
                 if (url.includes('|')) {
                     const cevirmen = url.split('|')[1];
                     finalName = `${serverName} + ${cevirmen}`;
+                    refererUrl = encodeURI(url.split('|')[0]);
                 }
-                
+
                 streams.push({
                     name: finalName,
                     title: finalName,
@@ -900,7 +914,7 @@ async function processFetchResult(fetchResult) {
                         proxyHeaders: {
                             request: {
                                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                                'Referer': url.split('|')[0]
+                                'Referer': refererUrl
                             }
                         }
                     }
@@ -909,21 +923,21 @@ async function processFetchResult(fetchResult) {
                 console.log('   ❌ SibNet player.src bulunamadı');
             }
         }
-        
+
         // ========== GENERIC EXTRACTOR ==========
         else {
             console.log('   🔍 Generic M3U8 pattern aranıyor...');
-            
+
             // M3U8 ara
             let m3uMatch = body.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
             if (!m3uMatch) m3uMatch = body.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/);
             if (!m3uMatch) m3uMatch = body.match(/source:\s*["']([^"']+\.m3u8[^"']*)["']/);
             if (!m3uMatch) m3uMatch = body.match(/(https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*)/);
-            
+
             if (m3uMatch) {
                 const m3uUrl = m3uMatch[1] || m3uMatch[0];
                 console.log(`   ✅ Generic M3U8 bulundu: ${m3uUrl.substring(0, 80)}...`);
-                
+
                 streams.push({
                     name: serverName,
                     title: serverName,
@@ -934,7 +948,7 @@ async function processFetchResult(fetchResult) {
                         proxyHeaders: {
                             request: {
                                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                                'Referer': url
+                                'Referer': encodedUrl
                             }
                         }
                     }
@@ -943,7 +957,7 @@ async function processFetchResult(fetchResult) {
                 console.log('   ❌ M3U8 bulunamadı');
             }
         }
-        
+
         console.log(`\n📊 ${serverName}'dan ${streams.length} stream bulundu`);
         return { streams };
     }
@@ -953,14 +967,14 @@ async function processFetchResult(fetchResult) {
         console.log('\n🔍 [GOOGLE DRIVE API] Response işleniyor...');
         const serverName = metadata?.serverName || 'GdrivePlayer';
         const streams = [];
-        
+
         try {
             const apiResponse = JSON.parse(body);
-            
+
             if (apiResponse.status === 'success' && apiResponse.data && apiResponse.data.embedUrl) {
                 const embedUrl = apiResponse.data.embedUrl;
                 console.log(`   ✅ Embed URL: ${embedUrl.substring(0, 80)}...`);
-                
+
                 // Embed sayfasını fetch et
                 const randomId = Math.random().toString(36).substring(2, 10);
                 return {
@@ -979,7 +993,7 @@ async function processFetchResult(fetchResult) {
         } catch (e) {
             console.log('   ❌ JSON parse hatası:', e.message);
         }
-        
+
         return { streams };
     }
 
@@ -989,25 +1003,25 @@ async function processFetchResult(fetchResult) {
         const $ = cheerio.load(body);
         const serverName = metadata?.serverName || 'GdrivePlayer';
         const streams = [];
-        
+
         const bodyEl = $('body[ng-init]');
         const ngInit = bodyEl.attr('ng-init');
-        
+
         if (ngInit) {
             console.log(`   ✅ ng-init bulundu`);
-            
+
             const initMatch = ngInit.match(/init\('([^']+)',\s*'([^']+)',\s*'([^']+)',\s*'([^']*)'\)/);
-            
+
             if (initMatch) {
                 const playUrl = initMatch[1];
                 const keyHex = initMatch[2];
-                
+
                 console.log(`   ✅ Play URL: ${playUrl}`);
                 console.log(`   ✅ Key: ${keyHex}`);
-                
+
                 // Video API'sine istek at
                 const videoApiUrl = `${playUrl}/?video_id=${keyHex}&action=get_video`;
-                
+
                 const randomId = Math.random().toString(36).substring(2, 10);
                 return {
                     instructions: [{
@@ -1028,7 +1042,7 @@ async function processFetchResult(fetchResult) {
         } else {
             console.log('   ❌ ng-init attribute bulunamadı');
         }
-        
+
         return { streams };
     }
 
@@ -1039,20 +1053,20 @@ async function processFetchResult(fetchResult) {
         const playUrl = metadata?.playUrl;
         const keyHex = metadata?.keyHex;
         const streams = [];
-        
+
         try {
             const videoData = JSON.parse(body);
-            
+
             if (videoData.qualities && Array.isArray(videoData.qualities)) {
                 console.log(`   ✅ ${videoData.qualities.length} kalite bulundu`);
-                
+
                 for (const q of videoData.qualities) {
                     const quality = q.quality;
                     const qualityLabel = `${quality}p`;
                     const videoUrl = `${playUrl}/?video_id=${keyHex}&quality=${quality}&action=p`;
-                    
+
                     console.log(`   [${qualityLabel}] ${videoUrl.substring(0, 60)}...`);
-                    
+
                     streams.push({
                         name: `${serverName} ${qualityLabel}`,
                         title: `${serverName} ${qualityLabel}`,
@@ -1075,7 +1089,7 @@ async function processFetchResult(fetchResult) {
         } catch (e) {
             console.log('   ❌ JSON parse hatası:', e.message);
         }
-        
+
         console.log(`\n📊 ${serverName}'dan ${streams.length} stream bulundu`);
         return { streams };
     }
