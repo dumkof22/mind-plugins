@@ -780,21 +780,21 @@ async function processFetchResult(fetchResult) {
                 // Altyazıları iframe'den çek (Kotlin'deki gibi)
                 const iframeSubtitles = [];
                 const subUrls = new Set();
-                
+
                 // Kotlin'deki regex: "file":"((?:\\\"|[^"])+)","label":"((?:\\\"|[^"])+)"
                 const subRegex = /"file":"((?:\\"|[^"])+)","label":"((?:\\"|[^"])+)"/g;
                 let subMatch;
-                
+
                 while ((subMatch = subRegex.exec(body)) !== null) {
                     const subUrlRaw = subMatch[1];
                     const subLangRaw = subMatch[2];
-                    
+
                     // URL temizleme
                     const subUrl = subUrlRaw
                         .replace(/\\\//g, '/')
                         .replace(/\\u0026/g, '&')
                         .replace(/\\/g, '');
-                    
+
                     // Dil temizleme
                     const subLang = subLangRaw
                         .replace(/\\u0131/g, 'ı')
@@ -803,11 +803,11 @@ async function processFetchResult(fetchResult) {
                         .replace(/\\u00e7/g, 'ç')
                         .replace(/\\u011f/g, 'ğ')
                         .replace(/\\u015f/g, 'ş');
-                    
+
                     const keywords = ['tur', 'tr', 'türkçe', 'turkce'];
                     const language = subLang.includes('Forced') ? 'Turkish Forced' :
                         keywords.some(k => subLang.toLowerCase().includes(k)) ? 'Turkish' : subLang;
-                    
+
                     if (!subUrls.has(subUrl)) {
                         subUrls.add(subUrl);
                         iframeSubtitles.push({
@@ -861,11 +861,11 @@ async function processFetchResult(fetchResult) {
                 const subUrls = new Set();
                 const subRegex = /"captions","file":"([^"]*)","label":"([^"]*)"\}/g;
                 let subMatch;
-                
+
                 while ((subMatch = subRegex.exec(body)) !== null) {
                     const subUrl = subMatch[1].replace(/\\/g, '');
                     const subLangRaw = subMatch[2];
-                    
+
                     // Dil temizleme
                     const subLang = subLangRaw
                         .replace(/\\u0131/g, 'ı')
@@ -874,10 +874,10 @@ async function processFetchResult(fetchResult) {
                         .replace(/\\u00e7/g, 'ç')
                         .replace(/\\u011f/g, 'ğ')
                         .replace(/\\u015f/g, 'ş');
-                    
+
                     const keywords = ['tur', 'tr', 'türkçe', 'turkce'];
                     const language = keywords.some(k => subLang.toLowerCase().includes(k)) ? 'Turkish' : subLang;
-                    
+
                     if (!subUrls.has(subUrl)) {
                         subUrls.add(subUrl);
                         rapidSubtitles.push({
@@ -902,12 +902,12 @@ async function processFetchResult(fetchResult) {
                         type: 'm3u8',
                         behaviorHints: { notWebReady: false }
                     };
-                    
+
                     if (rapidSubtitles.length > 0) {
                         streamObj.subtitles = rapidSubtitles;
                         console.log(`   📝 ${rapidSubtitles.length} altyazı eklendi`);
                     }
-                    
+
                     streams.push(streamObj);
                 } else {
                     // Fallback: eval-based extraction
@@ -923,12 +923,12 @@ async function processFetchResult(fetchResult) {
                                 type: 'm3u8',
                                 behaviorHints: { notWebReady: false }
                             };
-                            
+
                             if (rapidSubtitles.length > 0) {
                                 streamObj.subtitles = rapidSubtitles;
                                 console.log(`   📝 ${rapidSubtitles.length} altyazı eklendi`);
                             }
-                            
+
                             streams.push(streamObj);
                         }
                     }
@@ -943,16 +943,16 @@ async function processFetchResult(fetchResult) {
                 const vidmoxySubtitles = [];
                 const altyRegex = /"file": "([^"]*)"/gi;
                 let altyMatch;
-                
+
                 while ((altyMatch = altyRegex.exec(body)) !== null) {
                     const subUrl = altyMatch[1];
                     if (!subUrl.includes('.vtt') && !subUrl.includes('.srt')) continue;
-                    
+
                     const subLangRaw = subUrl.substring(subUrl.lastIndexOf('/') + 1).split('_')[0];
-                    
+
                     const keywords = ['tur', 'tr', 'türkçe', 'turkce'];
                     const language = keywords.some(k => subLangRaw.toLowerCase().includes(k)) ? 'Turkish' : subLangRaw;
-                    
+
                     vidmoxySubtitles.push({
                         id: language.toLowerCase().replace(/\s+/g, '_'),
                         url: subUrl.startsWith('http') ? subUrl : `https:${subUrl}`,
@@ -973,12 +973,12 @@ async function processFetchResult(fetchResult) {
                         type: 'm3u8',
                         behaviorHints: { notWebReady: false }
                     };
-                    
+
                     if (vidmoxySubtitles.length > 0) {
                         streamObj.subtitles = vidmoxySubtitles;
                         console.log(`   📝 ${vidmoxySubtitles.length} altyazı eklendi`);
                     }
-                    
+
                     streams.push(streamObj);
                 }
             }
@@ -1053,11 +1053,11 @@ async function processFetchResult(fetchResult) {
                     const turkeySubtitles = [];
                     if (!fixM3u.includes('master.txt')) {
                         // Eğer master.txt değilse, bu bir altyazı dosyası olabilir
-                        const subLang = fixM3u.toLowerCase().includes('tur') || 
-                                       fixM3u.toLowerCase().includes('tr') || 
-                                       fixM3u.toLowerCase().includes('türkçe') ? 'Turkish' : 
-                                       fixM3u.toLowerCase().includes('en') ? 'English' : 'Bilinmeyen';
-                        
+                        const subLang = fixM3u.toLowerCase().includes('tur') ||
+                            fixM3u.toLowerCase().includes('tr') ||
+                            fixM3u.toLowerCase().includes('türkçe') ? 'Turkish' :
+                            fixM3u.toLowerCase().includes('en') ? 'English' : 'Bilinmeyen';
+
                         turkeySubtitles.push({
                             id: subLang.toLowerCase().replace(/\s+/g, '_'),
                             url: fixM3u,
@@ -1073,12 +1073,12 @@ async function processFetchResult(fetchResult) {
                         type: 'm3u8',
                         behaviorHints: { notWebReady: false }
                     };
-                    
+
                     if (turkeySubtitles.length > 0) {
                         streamObj.subtitles = turkeySubtitles;
                         console.log(`   📝 ${turkeySubtitles.length} altyazı eklendi`);
                     }
-                    
+
                     streams.push(streamObj);
                 }
             }
@@ -1174,29 +1174,29 @@ async function processFetchResult(fetchResult) {
 
                 // Altyazıları önce bul (m.php için metadata'ya eklemek için)
                 const subtitlesForMetadata = [];
-                
+
                 // Önce iframe'den gelen altyazıları ekle
                 if (metadata?.iframeSubtitles && Array.isArray(metadata.iframeSubtitles)) {
                     subtitlesForMetadata.push(...metadata.iframeSubtitles);
                     console.log(`   📝 ${metadata.iframeSubtitles.length} altyazı iframe'den alındı`);
                 }
-                
+
                 // Sonra source2.php'den gelen altyazıları ekle
                 try {
                     const jsonData = JSON.parse(body);
                     const tracks = jsonData.playlist?.[0]?.tracks || [];
-                    
+
                     console.log(`   🔍 Tracks array length: ${tracks.length}`);
-                    
+
                     if (tracks.length > 0) {
                         console.log(`   🔍 First track:`, JSON.stringify(tracks[0], null, 2));
                     }
-                    
+
                     const subUrls = new Set(subtitlesForMetadata.map(s => s.url));
-                    
+
                     for (const track of tracks) {
                         console.log(`   🔍 Processing track:`, track.kind, track.label);
-                        
+
                         if (track.kind === 'captions' && track.file && track.label) {
                             const subUrlRaw = track.file;
                             const subLangRaw = track.label;
@@ -1221,7 +1221,7 @@ async function processFetchResult(fetchResult) {
                                 keywords.some(k => subLang.toLowerCase().includes(k)) ? 'Turkish' : subLang;
 
                             const finalSubUrl = subUrl.startsWith('http') ? subUrl : `https:${subUrl}`;
-                            
+
                             // Duplicate kontrolü
                             if (!subUrls.has(finalSubUrl)) {
                                 subUrls.add(finalSubUrl);
@@ -1234,7 +1234,7 @@ async function processFetchResult(fetchResult) {
                             }
                         }
                     }
-                    
+
                     if (subtitlesForMetadata.length > 0) {
                         console.log(`   📝 Toplam ${subtitlesForMetadata.length} altyazı bulundu (metadata'ya ekleniyor)`);
                     } else {
@@ -1296,21 +1296,21 @@ async function processFetchResult(fetchResult) {
 
                 // Altyazıları bul
                 const subtitles = [];
-                
+
                 // Önce iframe'den gelen altyazıları ekle
                 if (metadata?.iframeSubtitles && Array.isArray(metadata.iframeSubtitles)) {
                     subtitles.push(...metadata.iframeSubtitles);
                     console.log(`   📝 ${metadata.iframeSubtitles.length} altyazı iframe'den alındı`);
                 }
-                
+
                 // Sonra source2.php'den gelen altyazıları ekle
                 const subUrls = new Set(subtitles.map(s => s.url));
-                
+
                 // Önce JSON parse ile dene (daha güvenilir)
                 try {
                     const jsonData = JSON.parse(body);
                     const tracks = jsonData.playlist?.[0]?.tracks || [];
-                    
+
                     for (const track of tracks) {
                         if (track.kind === 'captions' && track.file && track.label) {
                             const subUrlRaw = track.file;
@@ -1336,7 +1336,7 @@ async function processFetchResult(fetchResult) {
                                 keywords.some(k => subLang.toLowerCase().includes(k)) ? 'Turkish' : subLang;
 
                             const finalSubUrl = subUrl.startsWith('http') ? subUrl : `https:${subUrl}`;
-                            
+
                             // Duplicate kontrolü
                             if (!subUrls.has(finalSubUrl)) {
                                 subUrls.add(finalSubUrl);
@@ -1351,12 +1351,12 @@ async function processFetchResult(fetchResult) {
                 } catch (e) {
                     // JSON parse başarısız, regex ile dene (Kotlin'deki regex pattern'i kullan)
                     console.log('   JSON parse failed for subtitles, trying regex...');
-                    
+
                     // Kotlin'deki regex: "file":"((?:\\\"|[^"])+)","label":"((?:\\\"|[^"])+)"
                     // JavaScript'te escape karakterlerini düzgün handle etmek için
                     const trackRegex = /"file":"((?:\\"|[^"])+)","label":"((?:\\"|[^"])+)"/g;
                     let trackMatch;
-                    
+
                     while ((trackMatch = trackRegex.exec(body)) !== null) {
                         const subUrlRaw = trackMatch[1];
                         const subLangRaw = trackMatch[2];
@@ -1381,7 +1381,7 @@ async function processFetchResult(fetchResult) {
                             keywords.some(k => subLang.toLowerCase().includes(k)) ? 'Turkish' : subLang;
 
                         const finalSubUrl = subUrl.startsWith('http') ? subUrl : `https:${subUrl}`;
-                        
+
                         // Duplicate kontrolü
                         if (!subUrls.has(finalSubUrl)) {
                             subUrls.add(finalSubUrl);
@@ -1533,16 +1533,16 @@ async function processFetchResult(fetchResult) {
                     .trim();
 
                 console.log(`✅ Real M3U8 content: ${realM3u8.substring(0, 200)}...`);
-                
+
                 // M3U8'de SUBTITLES var mı kontrol et
                 const hasSubtitles = realM3u8.includes('TYPE=SUBTITLES');
                 console.log(`🔍 M3U8 contains SUBTITLES: ${hasSubtitles}`);
-                
+
                 if (hasSubtitles) {
                     const subtitleLines = realM3u8.split('\n').filter(line => line.includes('TYPE=SUBTITLES'));
                     console.log(`🔍 Found ${subtitleLines.length} subtitle line(s) in M3U8`);
                     subtitleLines.forEach((line, i) => {
-                        console.log(`   ${i+1}. ${line.substring(0, 150)}...`);
+                        console.log(`   ${i + 1}. ${line.substring(0, 150)}...`);
                     });
                 }
 
@@ -1557,17 +1557,18 @@ async function processFetchResult(fetchResult) {
                 // M3U8 içeriğini parse et ve gerçek stream URL'lerini çıkar
                 const streams = [];
                 const subtitles = [];
-                
+
                 // Önce metadata'dan gelen altyazıları ekle (source2.php'den)
                 if (metadata?.subtitles && Array.isArray(metadata.subtitles)) {
                     subtitles.push(...metadata.subtitles);
                     console.log(`   📝 ${metadata.subtitles.length} altyazı metadata'dan alındı`);
                 }
-                
+
                 const lines = realM3u8.split('\n');
 
-                let currentQuality = null;
-                let currentAudio = null;
+                // Audio ve subtitle track'lerini topla
+                const audioTracks = [];
+                const audioMap = new Map();
 
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i].trim();
@@ -1575,12 +1576,37 @@ async function processFetchResult(fetchResult) {
                     // Audio track
                     if (line.startsWith('#EXT-X-MEDIA:TYPE=AUDIO')) {
                         const nameMatch = line.match(/NAME="([^"]+)"/);
+                        const langMatch = line.match(/LANGUAGE="([^"]+)"/);
                         const uriMatch = line.match(/URI="([^"]+)"/);
-                        if (nameMatch && uriMatch) {
-                            currentAudio = {
+                        const groupIdMatch = line.match(/GROUP-ID="([^"]+)"/);
+
+                        if (nameMatch) {
+                            let audioUrl = null;
+                            if (uriMatch) {
+                                audioUrl = uriMatch[1];
+                                // Relative URL'yi tam URL'ye çevir
+                                if (!audioUrl.startsWith('http://') && !audioUrl.startsWith('https://')) {
+                                    if (audioUrl.startsWith('/')) {
+                                        audioUrl = `${baseUrl}${audioUrl}`;
+                                    } else {
+                                        audioUrl = `${basePath}${audioUrl}`;
+                                    }
+                                }
+                            }
+
+                            const audioTrack = {
                                 name: nameMatch[1],
-                                url: uriMatch[1]
+                                language: langMatch ? langMatch[1] : nameMatch[1],
+                                url: audioUrl,
+                                groupId: groupIdMatch ? groupIdMatch[1] : null
                             };
+
+                            audioTracks.push(audioTrack);
+                            if (audioTrack.groupId) {
+                                audioMap.set(audioTrack.groupId, audioTrack);
+                            }
+
+                            console.log(`   🎵 Audio track bulundu: ${audioTrack.name} (${audioTrack.language})`);
                         }
                     }
 
@@ -1605,18 +1631,29 @@ async function processFetchResult(fetchResult) {
                             const subName = nameMatch ? nameMatch[1] : (langMatch ? langMatch[1] : 'Unknown');
                             const subLang = langMatch ? langMatch[1] : subName;
 
-                            subtitles.push({
-                                id: subLang.toLowerCase().replace(/\s+/g, '_'),
-                                url: subUrl,
-                                lang: subName
-                            });
+                            // Duplicate kontrolü
+                            const existingSub = subtitles.find(s => s.url === subUrl);
+                            if (!existingSub) {
+                                subtitles.push({
+                                    id: subLang.toLowerCase().replace(/\s+/g, '_'),
+                                    url: subUrl,
+                                    lang: subName
+                                });
+                                console.log(`   📝 M3U8'den altyazı bulundu: ${subName}`);
+                            }
                         }
                     }
+                }
+
+                // Video stream'leri parse et
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
 
                     // Video stream
                     if (line.startsWith('#EXT-X-STREAM-INF')) {
                         const resolutionMatch = line.match(/RESOLUTION=(\d+x\d+)/);
                         const bandwidthMatch = line.match(/BANDWIDTH=(\d+)/);
+                        const audioGroupMatch = line.match(/AUDIO="([^"]+)"/);
 
                         if (resolutionMatch && i + 1 < lines.length) {
                             const streamUrl = lines[i + 1].trim();
@@ -1636,7 +1673,20 @@ async function processFetchResult(fetchResult) {
                                     fullStreamUrl = `${basePath}${streamUrl}`;
                                 }
 
+                                // Audio group bilgisini al
+                                let audioTrackInfo = null;
+                                if (audioGroupMatch && audioMap.has(audioGroupMatch[1])) {
+                                    audioTrackInfo = audioMap.get(audioGroupMatch[1]);
+                                }
+
+                                const streamName = audioTrackInfo
+                                    ? `${extractorName} - ${height}p (${audioTrackInfo.name})`
+                                    : `${extractorName} - ${height}p`;
+
                                 console.log(`   📺 ${height}p: ${fullStreamUrl.substring(0, 80)}...`);
+                                if (audioTrackInfo) {
+                                    console.log(`      🎵 Ses: ${audioTrackInfo.name}`);
+                                }
 
                                 const streamOrigin = new URL(fullStreamUrl).origin;
                                 const iframeReferer = metadata?.iframeUrl || url;
@@ -1648,8 +1698,8 @@ async function processFetchResult(fetchResult) {
                                 };
 
                                 const streamObj = {
-                                    name: `${extractorName} - ${height}p`,
-                                    title: `${extractorName} - ${height}p`,
+                                    name: streamName,
+                                    title: streamName,
                                     url: fullStreamUrl,
                                     behaviorHints: {
                                         notWebReady: false,
@@ -1670,63 +1720,115 @@ async function processFetchResult(fetchResult) {
                     }
                 }
 
-                // Altyazı log
+                // Altyazı ve ses track loglama
+                console.log(`\n   📊 M3U8 Parse Sonucu:`);
+                console.log(`      📝 Toplam altyazı: ${subtitles.length}`);
+                console.log(`      🎵 Toplam ses track: ${audioTracks.length}`);
+                console.log(`      📺 Toplam video stream: ${streams.length}`);
+
                 if (subtitles.length > 0) {
-                    console.log(`   📝 ${subtitles.length} altyazı bulundu`);
+                    console.log(`\n   📝 Altyazılar:`);
+                    subtitles.forEach((sub, idx) => {
+                        console.log(`      ${idx + 1}. ${sub.lang} - ${sub.url.substring(0, 80)}...`);
+                    });
                 }
 
-                // Eğer hiç stream bulunamadıysa, tüm M3U8'i data URL olarak döndür
-                if (streams.length === 0) {
-                    console.log(`⚠️ No individual streams found, returning as data URL`);
-
-                    // M3U8 içindeki relative URL'leri tam URL'ye çevir
-                    const fixedM3u8Lines = realM3u8.split('\n').map(line => {
-                        const trimmedLine = line.trim();
-
-                        // Yorum satırları ve boş satırları olduğu gibi bırak
-                        if (trimmedLine.startsWith('#') || trimmedLine === '') {
-                            return line;
+                if (audioTracks.length > 0) {
+                    console.log(`\n   🎵 Ses Trackları:`);
+                    audioTracks.forEach((audio, idx) => {
+                        console.log(`      ${idx + 1}. ${audio.name} (${audio.language})`);
+                        if (audio.url) {
+                            console.log(`         URL: ${audio.url.substring(0, 80)}...`);
                         }
+                    });
+                }
 
-                        // URL satırlarını düzelt
-                        if (trimmedLine.startsWith('http://') || trimmedLine.startsWith('https://')) {
-                            return line;
-                        } else if (trimmedLine.startsWith('/')) {
-                            return `${baseUrl}${trimmedLine}`;
-                        } else {
-                            return `${basePath}${trimmedLine}`;
-                        }
-                    }).join('\n');
+                // Eğer audio track'leri varsa, proxy M3U8 URL'sini döndür (MediaKit kendi parse eder)
+                if (audioTracks.length > 0) {
+                    console.log(`🎵 Audio tracks detected (${audioTracks.length}), returning proxy M3U8 URL with all audio tracks`);
 
-                    // M3U8 içeriğini data URL olarak döndür
-                    const base64M3u8 = Buffer.from(fixedM3u8Lines).toString('base64');
-                    const dataUrl = `data:application/vnd.apple.mpegurl;base64,${base64M3u8}`;
-
-                    console.log(`📦 Data URL created (${base64M3u8.length} bytes base64)`);
-
+                    const proxyM3u8Url = metadata?.proxyUrl || url;
                     const iframeReferer = metadata?.iframeUrl || url;
+                    const m3u8Origin = new URL(proxyM3u8Url).origin;
+
                     const streamHeaders = {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'Referer': iframeReferer
+                        'Referer': iframeReferer,
+                        'Origin': m3u8Origin
                     };
 
-                    return {
-                        streams: [{
-                            name: extractorName,
-                            title: extractorName,
-                            url: dataUrl,
-                            behaviorHints: {
-                                notWebReady: false,
-                                proxyHeaders: {
-                                    request: streamHeaders
-                                }
+                    // Tüm ses track isimlerini listele
+                    const audioNames = audioTracks.map(a => a.name).join(', ');
+                    const streamName = audioTracks.length > 1
+                        ? `${extractorName} (${audioTracks.length} ses seçeneği)`
+                        : `${extractorName} (${audioNames})`;
+
+                    const streamObj = {
+                        name: streamName,
+                        title: streamName,
+                        url: proxyM3u8Url,
+                        behaviorHints: {
+                            notWebReady: false,
+                            proxyHeaders: {
+                                request: streamHeaders
                             }
-                        }]
+                        }
+                    };
+
+                    // Altyazıları ekle
+                    if (subtitles.length > 0) {
+                        streamObj.subtitles = subtitles;
+                        console.log(`   📝 ${subtitles.length} altyazı eklendi`);
+                    }
+
+                    console.log(`\n✅ Proxy M3U8 stream hazırlandı:`);
+                    console.log(`   🎬 Stream adı: ${streamName}`);
+                    console.log(`   📝 Altyazı: ${subtitles.length}`);
+                    console.log(`   🎵 Ses track: ${audioTracks.length}`);
+                    console.log(`   📺 Kalite: ${streams.length} seçenek (MediaKit'te görünecek)`);
+                    console.log(`   🔗 M3U8 URL: ${proxyM3u8Url.substring(0, 100)}...`);
+
+                    return {
+                        streams: [streamObj]
                     };
                 }
 
-                console.log(`✅ Found ${streams.length} quality stream(s)`);
-                return { streams };
+                // Audio track yoksa ama stream varsa, normal stream'leri döndür
+                if (streams.length > 0) {
+                    console.log(`✅ Found ${streams.length} quality stream(s) (No audio tracks, returning as-is)`);
+                    return { streams };
+                }
+
+                // Hiçbir stream yoksa, proxy M3U8 döndür (fallback)
+                console.log(`⚠️ No streams found, returning proxy M3U8 URL as fallback`);
+                const proxyM3u8Url = metadata?.proxyUrl || url;
+                const iframeReferer = metadata?.iframeUrl || url;
+                const m3u8Origin = new URL(proxyM3u8Url).origin;
+
+                const streamHeaders = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Referer': iframeReferer,
+                    'Origin': m3u8Origin
+                };
+
+                const streamObj = {
+                    name: extractorName,
+                    title: extractorName,
+                    url: proxyM3u8Url,
+                    behaviorHints: {
+                        notWebReady: false,
+                        proxyHeaders: {
+                            request: streamHeaders
+                        }
+                    }
+                };
+
+                // Altyazıları ekle
+                if (subtitles.length > 0) {
+                    streamObj.subtitles = subtitles;
+                }
+
+                return { streams: [streamObj] };
             }
 
             console.log(`❌ Could not resolve M3U8 from m.php`);

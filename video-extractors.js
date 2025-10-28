@@ -12,20 +12,53 @@ async function extractTauVideo(fetchResult) {
         const data = JSON.parse(body);
 
         if (data.urls && Array.isArray(data.urls)) {
+            // Extract subtitles if available
+            const subtitles = [];
+            if (data.tracks && Array.isArray(data.tracks)) {
+                data.tracks.filter(t => t.kind === 'captions' || t.kind === 'subtitles').forEach(track => {
+                    if (track.file) {
+                        subtitles.push({
+                            id: (track.language || track.label || 'tr').toLowerCase().replace(/\s+/g, '_'),
+                            url: track.file,
+                            lang: track.label || track.language || 'Türkçe'
+                        });
+                    }
+                });
+            }
+
+            // Extract audio tracks if available
+            const audioTracks = [];
+            if (data.tracks && Array.isArray(data.tracks)) {
+                data.tracks.filter(t => t.kind === 'audio' || t.kind === 'audiotrack').forEach(track => {
+                    if (track.file) {
+                        audioTracks.push({
+                            id: (track.language || track.label || 'default').toLowerCase().replace(/\s+/g, '_'),
+                            url: track.file,
+                            lang: track.label || track.language || 'Orijinal'
+                        });
+                    }
+                });
+            }
+
             data.urls.forEach(video => {
                 const quality = video.label || 'Unknown';
 
-                streams.push({
+                const streamData = {
                     name: streamName,
                     title: `${streamName} - ${quality}`,
                     url: video.url,
                     behaviorHints: {
                         notWebReady: false
                     }
-                });
+                };
+
+                if (subtitles.length > 0) streamData.subtitles = subtitles;
+                if (audioTracks.length > 0) streamData.audioTracks = audioTracks;
+
+                streams.push(streamData);
             });
 
-            console.log(`✅ TauVideo: Extracted ${streams.length} stream(s)`);
+            console.log(`✅ TauVideo: Extracted ${streams.length} stream(s), ${subtitles.length} subtitle(s), ${audioTracks.length} audio track(s)`);
         }
     } catch (e) {
         console.log('⚠️  TauVideo extraction error:', e.message);
@@ -144,16 +177,54 @@ async function extractSibNet(fetchResult) {
             const m3uPath = m3uMatch[1];
             const m3uUrl = `https://video.sibnet.ru${m3uPath}`;
 
-            streams.push({
+            const streamData = {
                 name: streamName,
                 title: streamName,
                 url: m3uUrl,
                 behaviorHints: {
                     notWebReady: false
                 }
-            });
+            };
+
+            // Extract subtitles and audio tracks if available
+            const subtitles = [];
+            const audioTracks = [];
+
+            const tracksMatch = body.match(/tracks\s*:\s*(\[[\s\S]*?\])/);
+            if (tracksMatch) {
+                try {
+                    const tracksData = JSON.parse(tracksMatch[1]);
+                    tracksData.filter(t => t.kind === 'captions' || t.kind === 'subtitles').forEach(track => {
+                        if (track.file) {
+                            subtitles.push({
+                                id: (track.language || track.label || 'tr').toLowerCase().replace(/\s+/g, '_'),
+                                url: track.file.startsWith('http') ? track.file : `https://video.sibnet.ru${track.file}`,
+                                lang: track.label || track.language || 'Türkçe'
+                            });
+                        }
+                    });
+                    tracksData.filter(t => t.kind === 'audio' || t.kind === 'audiotrack').forEach(track => {
+                        if (track.file) {
+                            audioTracks.push({
+                                id: (track.language || track.label || 'default').toLowerCase().replace(/\s+/g, '_'),
+                                url: track.file.startsWith('http') ? track.file : `https://video.sibnet.ru${track.file}`,
+                                lang: track.label || track.language || 'Orijinal'
+                            });
+                        }
+                    });
+                } catch (e) {
+                    console.log('⚠️  Tracks parse error:', e.message);
+                }
+            }
+
+            if (subtitles.length > 0) streamData.subtitles = subtitles;
+            if (audioTracks.length > 0) streamData.audioTracks = audioTracks;
+
+            streams.push(streamData);
 
             console.log(`✅ SibNet: URL extracted - ${m3uUrl.substring(0, 60)}...`);
+            if (subtitles.length > 0) console.log(`   ${subtitles.length} subtitle(s) found`);
+            if (audioTracks.length > 0) console.log(`   ${audioTracks.length} audio track(s) found`);
         } else {
             console.log('⚠️  SibNet: No m3u link found');
         }
@@ -291,7 +362,7 @@ async function extractCizgiDuo(fetchResult) {
                 const m3uLink = cleaned.match(/video_location":"([^"]+)/)?.[1];
 
                 if (m3uLink) {
-                    streams.push({
+                    const streamData = {
                         name: streamName,
                         title: streamName,
                         url: m3uLink,
@@ -299,9 +370,47 @@ async function extractCizgiDuo(fetchResult) {
                         behaviorHints: {
                             notWebReady: false
                         }
-                    });
+                    };
+
+                    // Extract subtitles and audio tracks if available
+                    const subtitles = [];
+                    const audioTracks = [];
+
+                    const tracksMatch = body.match(/tracks\s*:\s*(\[[\s\S]*?\])/);
+                    if (tracksMatch) {
+                        try {
+                            const tracksData = JSON.parse(tracksMatch[1]);
+                            tracksData.filter(t => t.kind === 'captions' || t.kind === 'subtitles').forEach(track => {
+                                if (track.file) {
+                                    subtitles.push({
+                                        id: (track.language || track.label || 'tr').toLowerCase().replace(/\s+/g, '_'),
+                                        url: track.file,
+                                        lang: track.label || track.language || 'Türkçe'
+                                    });
+                                }
+                            });
+                            tracksData.filter(t => t.kind === 'audio' || t.kind === 'audiotrack').forEach(track => {
+                                if (track.file) {
+                                    audioTracks.push({
+                                        id: (track.language || track.label || 'default').toLowerCase().replace(/\s+/g, '_'),
+                                        url: track.file,
+                                        lang: track.label || track.language || 'Orijinal'
+                                    });
+                                }
+                            });
+                        } catch (e) {
+                            console.log('⚠️  Tracks parse error:', e.message);
+                        }
+                    }
+
+                    if (subtitles.length > 0) streamData.subtitles = subtitles;
+                    if (audioTracks.length > 0) streamData.audioTracks = audioTracks;
+
+                    streams.push(streamData);
 
                     console.log(`✅ ${streamName}: URL extracted - ${m3uLink.substring(0, 60)}...`);
+                    if (subtitles.length > 0) console.log(`   ${subtitles.length} subtitle(s) found`);
+                    if (audioTracks.length > 0) console.log(`   ${audioTracks.length} audio track(s) found`);
                 }
             }
         }

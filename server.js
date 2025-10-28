@@ -38,6 +38,7 @@ const addonModules = {
     'dizipal': require('./dizipal.js'),
     'selcuksports': require('./selcuk-new.js'),
     'sporcafe': require('./sporcafe.js'),
+    'webspor': require('./webspor-addon.js'),
 
     // Yeni Türkçe içerik eklentileri
     'animecix': require('./animecix-addon.js'),
@@ -77,7 +78,7 @@ const addonCategories = {
     '🎨 Çizgi Film': ['cizgimax', 'cizgivedizi'],
     '📚 Belgesel': ['belgeselx'],
     '📺 Canlı TV': ['inatbox', 'canlitv'],
-    '⚽ Spor': ['selcuksports', 'sporcafe']
+    '⚽ Spor': ['selcuksports', 'sporcafe', 'webspor']
 };
 
 Object.entries(addonCategories).forEach(([category, ids]) => {
@@ -121,7 +122,7 @@ app.get('/api/addons/categories', (req, res) => {
         '🎨 Çizgi Film': ['cizgimax', 'cizgivedizi'],
         '📚 Belgesel': ['belgeselx'],
         '📺 Canlı TV': ['inatbox', 'canlitv'],
-        '⚽ Spor': ['selcuksports', 'sporcafe'],
+        '⚽ Spor': ['selcuksports', 'sporcafe', 'webspor'],
         '📺 Dizi': ['dizipal']
     };
 
@@ -436,7 +437,60 @@ app.get('/api/admin/stats', checkAuth, (req, res) => {
         stats
     });
 });
+// ============ DYNAMIC URL ENDPOINTS ============
 
+// Get dynamic URLs for an addon
+app.get('/api/addon/:addonId/dynamic-urls', (req, res) => {
+    const { addonId } = req.params;
+    const addon = addonModules[addonId];
+
+    if (!addon) {
+        return res.status(404).json({ error: 'Addon not found' });
+    }
+
+    try {
+        // Check if addon supports dynamic URLs
+        if (typeof addon.getDynamicBaseUrls === 'function') {
+            const urls = addon.getDynamicBaseUrls();
+            console.log(`🔗 [${addonId}] Dynamic URL list requested: ${urls.length} URLs`);
+            res.json({ urls });
+        } else {
+            res.json({ urls: [] });
+        }
+    } catch (error) {
+        console.error(`❌ [${addonId}] Dynamic URLs error:`, error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Update dynamic URL for an addon
+app.post('/api/addon/:addonId/dynamic-url', (req, res) => {
+    const { addonId } = req.params;
+    const { url } = req.body;
+    const addon = addonModules[addonId];
+
+    if (!addon) {
+        return res.status(404).json({ error: 'Addon not found' });
+    }
+
+    if (!url) {
+        return res.status(400).json({ error: 'URL required' });
+    }
+
+    try {
+        // Check if addon supports dynamic URL update
+        if (typeof addon.setDynamicBaseUrl === 'function') {
+            const success = addon.setDynamicBaseUrl(url);
+            console.log(`🔄 [${addonId}] Dynamic URL update: ${url} - ${success ? 'Success' : 'Failed'}`);
+            res.json({ success });
+        } else {
+            res.json({ success: false, error: 'Addon does not support dynamic URLs' });
+        }
+    } catch (error) {
+        console.error(`❌ [${addonId}] Dynamic URL update error:`, error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
 // Start server
 let server;
 const PORT = process.env.PORT || 3000;

@@ -571,6 +571,7 @@ async function processFetchResult(fetchResult) {
         const streams = [];
         const streamName = fetchResult.metadata?.sourceName || 'HDFilmCehennemi';
         const subtitles = [];
+        const audioTracks = [];
 
         try {
             // ÖNCE: Body'den direkt tracks bilgisini al (unpacked'den önce)
@@ -578,28 +579,68 @@ async function processFetchResult(fetchResult) {
             if (tracksMatch) {
                 try {
                     console.log(`🎯 Found tracks in body: ${tracksMatch[1].substring(0, 200)}...`);
-                    
+
                     // JSON parse et
                     const tracksData = JSON.parse(tracksMatch[1]);
+
+                    // Subtitles/Captions
                     tracksData.filter(t => t.kind === 'captions' || t.kind === 'subtitles').forEach(track => {
                         if (track.file) {
                             const subUrl = track.file.startsWith('http') ? track.file : `${BASE_URL}${track.file}`;
                             subtitles.push({
-                                id: (track.language || 'tr').toLowerCase(),
+                                id: (track.language || track.label || 'tr').toLowerCase().replace(/\s+/g, '_'),
                                 url: subUrl,
                                 lang: track.label || track.language || 'Türkçe'
                             });
                         }
                     });
-                    
+
+                    // Audio tracks
+                    tracksData.filter(t => t.kind === 'audio' || t.kind === 'audiotrack').forEach(track => {
+                        if (track.file) {
+                            const audioUrl = track.file.startsWith('http') ? track.file : `${BASE_URL}${track.file}`;
+                            audioTracks.push({
+                                id: (track.language || track.label || 'default').toLowerCase().replace(/\s+/g, '_'),
+                                url: audioUrl,
+                                lang: track.label || track.language || 'Orijinal'
+                            });
+                        }
+                    });
+
                     if (subtitles.length > 0) {
                         console.log(`✅ Found ${subtitles.length} subtitle(s) from tracks`);
+                    }
+                    if (audioTracks.length > 0) {
+                        console.log(`✅ Found ${audioTracks.length} audio track(s) from tracks`);
                     }
                 } catch (e) {
                     console.log('⚠️  Tracks parse error:', e.message);
                 }
             }
-            
+
+            // UNPACKED script'ten de tracks ara (fallback)
+            if (subtitles.length === 0) {
+                const unpackedTracksMatch = body.match(/tracks:\s*(\[[\s\S]*?\])\s*[,}]/);
+                if (unpackedTracksMatch) {
+                    try {
+                        const unpackedTracks = JSON.parse(unpackedTracksMatch[1]);
+                        unpackedTracks.filter(t => t.kind === 'captions' || t.kind === 'subtitles').forEach(track => {
+                            if (track.file) {
+                                const subUrl = track.file.startsWith('http') ? track.file : `${BASE_URL}${track.file}`;
+                                subtitles.push({
+                                    id: (track.language || track.label || 'tr').toLowerCase().replace(/\s+/g, '_'),
+                                    url: subUrl,
+                                    lang: track.label || track.language || 'Türkçe'
+                                });
+                            }
+                        });
+                        console.log(`✅ Found ${subtitles.length} subtitle(s) from unpacked tracks`);
+                    } catch (e) {
+                        console.log('⚠️  Unpacked tracks parse error:', e.message);
+                    }
+                }
+            }
+
             // Script içindeki sources bölümünü bul
             const scriptMatch = body.match(/<script[^>]*>(.*?sources:.*?)<\/script>/s);
 
@@ -676,21 +717,33 @@ async function processFetchResult(fetchResult) {
                 }
 
                 if (finalUrl && finalUrl.startsWith('http')) {
-                    streams.push({
+                    const streamData = {
                         name: streamName,
                         title: streamName,
                         url: finalUrl,
                         type: 'm3u8',
-                        subtitles: subtitles.length > 0 ? subtitles : undefined,
                         behaviorHints: {
                             notWebReady: false
                         }
-                    });
+                    };
+
+                    // Add subtitles if available
+                    if (subtitles.length > 0) {
+                        streamData.subtitles = subtitles;
+                    }
+
+                    // Add audio tracks if available
+                    if (audioTracks.length > 0) {
+                        streamData.audioTracks = audioTracks;
+                    }
+
+                    streams.push(streamData);
 
                     console.log(`✅ Stream extracted successfully!`);
                     console.log(`   Name: ${streamName}`);
                     console.log(`   URL: ${finalUrl}`);
                     console.log(`   Subtitles: ${subtitles.length}`);
+                    console.log(`   Audio Tracks: ${audioTracks.length}`);
                 } else {
                     console.log('⚠️  No valid stream URL found');
                 }
