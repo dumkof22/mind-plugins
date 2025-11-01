@@ -326,7 +326,7 @@
                 </div>
                 <div class="info-item">
                     <strong>Toplam Addon:</strong>
-                    <span id="addonCount">14</span>
+                    <span id="addonCount">20</span>
                 </div>
             </div>
         </div>
@@ -457,6 +457,48 @@
                 addonId: 'selcukflix',
                 description: 'Film ve dizi izleme platformu. Geniş içerik arşivi ve yüksek kalite.',
                 features: ['HD Kalite', 'Geniş Arşiv', 'Türkçe Dublaj']
+            },
+            {
+                icon: '🎬',
+                name: '4KFilmİzlesene',
+                addonId: '4kfilmizlesene',
+                description: '4K kalitede film izleme platformu. Türkçe ve yabancı filmler yüksek kalitede.',
+                features: ['4K Kalite', 'Çoklu Tür', 'Geniş Arşiv']
+            },
+            {
+                icon: '📺',
+                name: 'Dizist',
+                addonId: 'dizist',
+                description: 'Yabancı diziler, animeler ve Asya dizileri platformu. Türkçe altyazılı içerikler.',
+                features: ['Yabancı Diziler', 'Anime', 'Asya Dizileri']
+            },
+            {
+                icon: '🎥',
+                name: 'Sinefy',
+                addonId: 'sinefy',
+                description: 'Netflix içerikleri ve popüler film/diziler. Türk ve yabancı yapımlar.',
+                features: ['Netflix İçerikleri', 'Yeni Filmler', 'HD Kalite']
+            },
+            {
+                icon: '📡',
+                name: 'Tv8',
+                addonId: 'tv8',
+                description: 'Tv8 canlı yayını ve programları. Yarışmalar, diziler ve eğlence programları.',
+                features: ['Canlı Yayın', 'Yarışmalar', 'Diziler']
+            },
+            {
+                icon: '🎬',
+                name: 'WebteIzle',
+                addonId: 'webteizle',
+                description: 'Türkçe film platformu. HD kalitede filmler ve çoklu server seçenekleri.',
+                features: ['HD Filmler', 'Çoklu Server', 'Türkçe Dublaj']
+            },
+            {
+                icon: '🎮',
+                name: 'Kick.com TR',
+                addonId: 'kicktr',
+                description: 'Türk yayıncılar ve Kick.com canlı yayınları. Popüler kanallar ve oyun yayınları.',
+                features: ['Canlı Yayın', 'Türk Yayıncılar', 'Oyun Yayınları']
             }
         ];
 
@@ -475,7 +517,8 @@
 
         addonsData.forEach(addon => {
             const manifestUrl = `${baseUrl}/api/addon/${addon.addonId}/manifest.json`;
-            const MindUrl = manifestUrl.replace(/^https?:\/\//, 'mind://');
+            const protocolType = protocol === 'https:' ? 'https' : 'http';
+            const MindUrl = `mind://${protocolType}/${manifestUrl.replace(`${protocol}//`, '')}`;
 
             const card = document.createElement('div');
             card.className = 'addon-card';
@@ -488,7 +531,7 @@
                 </div>
                 <div class="manifest-url">${manifestUrl}</div>
                 <div class="addon-links">
-                    <button class="btn copy-btn" onclick="copyToClipboard('${manifestUrl}')">
+                    <button class="btn copy-btn" data-url="${manifestUrl}">
                         📋 Manifest URL'yi Kopyala
                     </button>
                     <a href="${manifestUrl}" target="_blank" class="btn btn-secondary">
@@ -500,6 +543,17 @@
                 </div>
             `;
             addonsGrid.appendChild(card);
+        });
+
+        // Add click event listeners to copy buttons
+        document.addEventListener('click', function (e) {
+            if (e.target.classList.contains('copy-btn') || e.target.closest('.copy-btn')) {
+                const btn = e.target.classList.contains('copy-btn') ? e.target : e.target.closest('.copy-btn');
+                const url = btn.getAttribute('data-url');
+                if (url) {
+                    copyToClipboard(url);
+                }
+            }
         });
 
         function copyToClipboard(text) {
