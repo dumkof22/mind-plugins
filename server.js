@@ -48,7 +48,15 @@ const addonModules = {
     'cizgivedizi': require('./cizgivedizi-addon.js'),
     'dizibox': require('./dizibox-addon.js'),
     'hdfilmcehennemi': require('./hdfilmcehennemi-addon.js'),
-    'selcukflix': require('./selcukflix.js')
+    'selcukflix': require('./selcukflix.js'),
+
+    // Kotlin'den çevrilen yeni eklentiler
+    '4kfilmizlesene': require('./4kfilmizlesene-addon.js'),
+    'dizist': require('./dizist-addon.js'),
+    'sinefy': require('./sinefy-addon.js'),
+    'tv8': require('./tv8-addon.js'),
+    'webteizle': require('./webteizle-addon.js'),
+    'kicktr': require('./kicktr-addon.js')
 };
 
 // Import video extractors (opsiyonel - eğer direkt kullanmak isterseniz)
@@ -73,11 +81,12 @@ console.log(`📦 Loaded ${Object.keys(addonModules).length} addon(s):\n`);
 
 // Kategorilere göre listeleme
 const addonCategories = {
-    '🎬 Film & Dizi': ['fullhdfilmizlesene', 'hdfilmcehennemi', 'dizibox', 'dizipal', 'selcukflix'],
+    '🎬 Film & Dizi': ['fullhdfilmizlesene', 'hdfilmcehennemi', 'dizibox', 'dizipal', 'selcukflix', '4kfilmizlesene', 'sinefy', 'webteizle'],
+    '📺 Dizi': ['dizist'],
     '🎌 Anime': ['animecix'],
     '🎨 Çizgi Film': ['cizgimax', 'cizgivedizi'],
     '📚 Belgesel': ['belgeselx'],
-    '📺 Canlı TV': ['inatbox', 'canlitv'],
+    '📺 Canlı TV & Programlar': ['inatbox', 'canlitv', 'tv8', 'kicktr'],
     '⚽ Spor': ['selcuksports', 'sporcafe', 'webspor']
 };
 
@@ -117,13 +126,13 @@ app.get('/api/addons', (req, res) => {
 // List addons by category (yeni eklentileri kategorize etmek için)
 app.get('/api/addons/categories', (req, res) => {
     const categories = {
-        '🎬 Film & Dizi': ['fullhdfilmizlesene', 'hdfilmcehennemi', 'dizibox', 'dizipal', 'selcukflix'],
+        '🎬 Film & Dizi': ['fullhdfilmizlesene', 'hdfilmcehennemi', 'dizibox', 'dizipal', 'selcukflix', '4kfilmizlesene', 'sinefy', 'webteizle'],
+        '📺 Dizi': ['dizipal', 'dizist'],
         '🎌 Anime': ['animecix'],
         '🎨 Çizgi Film': ['cizgimax', 'cizgivedizi'],
         '📚 Belgesel': ['belgeselx'],
-        '📺 Canlı TV': ['inatbox', 'canlitv'],
-        '⚽ Spor': ['selcuksports', 'sporcafe', 'webspor'],
-        '📺 Dizi': ['dizipal']
+        '📺 Canlı TV & Programlar': ['inatbox', 'canlitv', 'tv8', 'kicktr'],
+        '⚽ Spor': ['selcuksports', 'sporcafe', 'webspor']
     };
 
     const result = Object.entries(categories).map(([category, addonIds]) => ({

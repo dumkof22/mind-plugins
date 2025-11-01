@@ -55,8 +55,30 @@ const manifest = {
     idPrefixes: ['selcukshd']
 };
 
-const BASE_URL = 'https://www.selcuksportshd1c5fadfb14.xyz';
+// Dinamik URL desteği - Bu URL'ler periyodik olarak kontrol edilecek
+const DYNAMIC_BASE_URLS = [
+    'http://www.selcuksportshd1872.xyz',              // HTTP - SSL bypass
+
+];
+
+// Varsayılan URL (dinamik URL bulunamazsa kullanılacak)
+let BASE_URL = 'https://www.selcuksportshd1c5fadfb14.xyz';
 const PLAYER_BASE_URL = 'https://main.uxsyplayerb03b3c895b.click/index.php?id=';
+
+// Dinamik URL'i güncelle (Flutter tarafından çağrılacak)
+function setDynamicBaseUrl(url) {
+    if (url && url.startsWith('http')) {
+        BASE_URL = url.endsWith('/') ? url.slice(0, -1) : url;
+        console.log(`✅ [SporCafe] Dynamic URL updated: ${BASE_URL}`);
+        return true;
+    }
+    return false;
+}
+
+// Dinamik URL listesini al (Flutter tarafından kullanılacak)
+function getDynamicBaseUrls() {
+    return DYNAMIC_BASE_URLS;
+}
 
 // Kanal kategorilerine göre regex filtreleme
 function getChannelFilter(catalogId) {
@@ -394,9 +416,11 @@ module.exports = {
     handleCatalog,
     handleMeta,
     handleStream,
-    processFetchResult
+    processFetchResult,
+    // Dinamik URL desteği
+    getDynamicBaseUrls,
+    setDynamicBaseUrl
 };
-
 
 
 

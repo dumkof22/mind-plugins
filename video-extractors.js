@@ -12,30 +12,70 @@ async function extractTauVideo(fetchResult) {
         const data = JSON.parse(body);
 
         if (data.urls && Array.isArray(data.urls)) {
-            // Extract subtitles if available
+            // Extract subtitles if available (SelcukFlix standardı ile)
             const subtitles = [];
+            const subUrls = new Set();
+
             if (data.tracks && Array.isArray(data.tracks)) {
                 data.tracks.filter(t => t.kind === 'captions' || t.kind === 'subtitles').forEach(track => {
                     if (track.file) {
-                        subtitles.push({
-                            id: (track.language || track.label || 'tr').toLowerCase().replace(/\s+/g, '_'),
-                            url: track.file,
-                            lang: track.label || track.language || 'Türkçe'
-                        });
+                        // Unicode escape temizleme (Türkçe karakterler)
+                        const trackLabel = (track.label || track.language || 'Türkçe')
+                            .replace(/\\u0131/g, 'ı')
+                            .replace(/\\u0130/g, 'İ')
+                            .replace(/\\u00fc/g, 'ü')
+                            .replace(/\\u00e7/g, 'ç')
+                            .replace(/\\u011f/g, 'ğ')
+                            .replace(/\\u015f/g, 'ş');
+
+                        // Türkçe keyword kontrolü
+                        const keywords = ['tur', 'tr', 'türkçe', 'turkce'];
+                        const language = keywords.some(k => trackLabel.toLowerCase().includes(k)) ? 'Turkish' : trackLabel;
+
+                        const subUrl = track.file.startsWith('http') ? track.file : `https:${track.file}`;
+
+                        // Duplicate kontrolü
+                        if (!subUrls.has(subUrl)) {
+                            subUrls.add(subUrl);
+                            subtitles.push({
+                                id: language.toLowerCase().replace(/\s+/g, '_'),
+                                url: subUrl,
+                                lang: language
+                            });
+                            console.log(`   📝 TauVideo altyazı bulundu: ${language}`);
+                        }
                     }
                 });
             }
 
-            // Extract audio tracks if available
+            // Extract audio tracks if available (SelcukFlix standardı ile)
             const audioTracks = [];
+            const audioUrls = new Set();
+
             if (data.tracks && Array.isArray(data.tracks)) {
                 data.tracks.filter(t => t.kind === 'audio' || t.kind === 'audiotrack').forEach(track => {
                     if (track.file) {
-                        audioTracks.push({
-                            id: (track.language || track.label || 'default').toLowerCase().replace(/\s+/g, '_'),
-                            url: track.file,
-                            lang: track.label || track.language || 'Orijinal'
-                        });
+                        // Unicode escape temizleme
+                        const trackLabel = (track.label || track.language || 'Orijinal')
+                            .replace(/\\u0131/g, 'ı')
+                            .replace(/\\u0130/g, 'İ')
+                            .replace(/\\u00fc/g, 'ü')
+                            .replace(/\\u00e7/g, 'ç')
+                            .replace(/\\u011f/g, 'ğ')
+                            .replace(/\\u015f/g, 'ş');
+
+                        const audioUrl = track.file.startsWith('http') ? track.file : `https:${track.file}`;
+
+                        // Duplicate kontrolü
+                        if (!audioUrls.has(audioUrl)) {
+                            audioUrls.add(audioUrl);
+                            audioTracks.push({
+                                id: trackLabel.toLowerCase().replace(/\s+/g, '_'),
+                                url: audioUrl,
+                                lang: trackLabel
+                            });
+                            console.log(`   🎵 TauVideo ses track bulundu: ${trackLabel}`);
+                        }
                     }
                 });
             }
@@ -186,34 +226,76 @@ async function extractSibNet(fetchResult) {
                 }
             };
 
-            // Extract subtitles and audio tracks if available
+            // Extract subtitles and audio tracks if available (SelcukFlix standardı ile)
             const subtitles = [];
+            const subUrls = new Set();
             const audioTracks = [];
+            const audioUrls = new Set();
 
             const tracksMatch = body.match(/tracks\s*:\s*(\[[\s\S]*?\])/);
             if (tracksMatch) {
                 try {
                     const tracksData = JSON.parse(tracksMatch[1]);
+
+                    // Subtitle processing
                     tracksData.filter(t => t.kind === 'captions' || t.kind === 'subtitles').forEach(track => {
                         if (track.file) {
-                            subtitles.push({
-                                id: (track.language || track.label || 'tr').toLowerCase().replace(/\s+/g, '_'),
-                                url: track.file.startsWith('http') ? track.file : `https://video.sibnet.ru${track.file}`,
-                                lang: track.label || track.language || 'Türkçe'
-                            });
+                            // Unicode escape temizleme
+                            const trackLabel = (track.label || track.language || 'Türkçe')
+                                .replace(/\\u0131/g, 'ı')
+                                .replace(/\\u0130/g, 'İ')
+                                .replace(/\\u00fc/g, 'ü')
+                                .replace(/\\u00e7/g, 'ç')
+                                .replace(/\\u011f/g, 'ğ')
+                                .replace(/\\u015f/g, 'ş');
+
+                            // Türkçe keyword kontrolü
+                            const keywords = ['tur', 'tr', 'türkçe', 'turkce'];
+                            const language = keywords.some(k => trackLabel.toLowerCase().includes(k)) ? 'Turkish' : trackLabel;
+
+                            const subUrl = track.file.startsWith('http') ? track.file : `https://video.sibnet.ru${track.file}`;
+
+                            // Duplicate kontrolü
+                            if (!subUrls.has(subUrl)) {
+                                subUrls.add(subUrl);
+                                subtitles.push({
+                                    id: language.toLowerCase().replace(/\s+/g, '_'),
+                                    url: subUrl,
+                                    lang: language
+                                });
+                                console.log(`   📝 SibNet altyazı bulundu: ${language}`);
+                            }
                         }
                     });
+
+                    // Audio track processing
                     tracksData.filter(t => t.kind === 'audio' || t.kind === 'audiotrack').forEach(track => {
                         if (track.file) {
-                            audioTracks.push({
-                                id: (track.language || track.label || 'default').toLowerCase().replace(/\s+/g, '_'),
-                                url: track.file.startsWith('http') ? track.file : `https://video.sibnet.ru${track.file}`,
-                                lang: track.label || track.language || 'Orijinal'
-                            });
+                            // Unicode escape temizleme
+                            const trackLabel = (track.label || track.language || 'Orijinal')
+                                .replace(/\\u0131/g, 'ı')
+                                .replace(/\\u0130/g, 'İ')
+                                .replace(/\\u00fc/g, 'ü')
+                                .replace(/\\u00e7/g, 'ç')
+                                .replace(/\\u011f/g, 'ğ')
+                                .replace(/\\u015f/g, 'ş');
+
+                            const audioUrl = track.file.startsWith('http') ? track.file : `https://video.sibnet.ru${track.file}`;
+
+                            // Duplicate kontrolü
+                            if (!audioUrls.has(audioUrl)) {
+                                audioUrls.add(audioUrl);
+                                audioTracks.push({
+                                    id: trackLabel.toLowerCase().replace(/\s+/g, '_'),
+                                    url: audioUrl,
+                                    lang: trackLabel
+                                });
+                                console.log(`   🎵 SibNet ses track bulundu: ${trackLabel}`);
+                            }
                         }
                     });
                 } catch (e) {
-                    console.log('⚠️  Tracks parse error:', e.message);
+                    console.log('⚠️  SibNet tracks parse error:', e.message);
                 }
             }
 
@@ -372,34 +454,76 @@ async function extractCizgiDuo(fetchResult) {
                         }
                     };
 
-                    // Extract subtitles and audio tracks if available
+                    // Extract subtitles and audio tracks if available (SelcukFlix standardı ile)
                     const subtitles = [];
+                    const subUrls = new Set();
                     const audioTracks = [];
+                    const audioUrls = new Set();
 
                     const tracksMatch = body.match(/tracks\s*:\s*(\[[\s\S]*?\])/);
                     if (tracksMatch) {
                         try {
                             const tracksData = JSON.parse(tracksMatch[1]);
+
+                            // Subtitle processing
                             tracksData.filter(t => t.kind === 'captions' || t.kind === 'subtitles').forEach(track => {
                                 if (track.file) {
-                                    subtitles.push({
-                                        id: (track.language || track.label || 'tr').toLowerCase().replace(/\s+/g, '_'),
-                                        url: track.file,
-                                        lang: track.label || track.language || 'Türkçe'
-                                    });
+                                    // Unicode escape temizleme
+                                    const trackLabel = (track.label || track.language || 'Türkçe')
+                                        .replace(/\\u0131/g, 'ı')
+                                        .replace(/\\u0130/g, 'İ')
+                                        .replace(/\\u00fc/g, 'ü')
+                                        .replace(/\\u00e7/g, 'ç')
+                                        .replace(/\\u011f/g, 'ğ')
+                                        .replace(/\\u015f/g, 'ş');
+
+                                    // Türkçe keyword kontrolü
+                                    const keywords = ['tur', 'tr', 'türkçe', 'turkce'];
+                                    const language = keywords.some(k => trackLabel.toLowerCase().includes(k)) ? 'Turkish' : trackLabel;
+
+                                    const subUrl = track.file.startsWith('http') ? track.file : `https:${track.file}`;
+
+                                    // Duplicate kontrolü
+                                    if (!subUrls.has(subUrl)) {
+                                        subUrls.add(subUrl);
+                                        subtitles.push({
+                                            id: language.toLowerCase().replace(/\s+/g, '_'),
+                                            url: subUrl,
+                                            lang: language
+                                        });
+                                        console.log(`   📝 ${streamName} altyazı bulundu: ${language}`);
+                                    }
                                 }
                             });
+
+                            // Audio track processing
                             tracksData.filter(t => t.kind === 'audio' || t.kind === 'audiotrack').forEach(track => {
                                 if (track.file) {
-                                    audioTracks.push({
-                                        id: (track.language || track.label || 'default').toLowerCase().replace(/\s+/g, '_'),
-                                        url: track.file,
-                                        lang: track.label || track.language || 'Orijinal'
-                                    });
+                                    // Unicode escape temizleme
+                                    const trackLabel = (track.label || track.language || 'Orijinal')
+                                        .replace(/\\u0131/g, 'ı')
+                                        .replace(/\\u0130/g, 'İ')
+                                        .replace(/\\u00fc/g, 'ü')
+                                        .replace(/\\u00e7/g, 'ç')
+                                        .replace(/\\u011f/g, 'ğ')
+                                        .replace(/\\u015f/g, 'ş');
+
+                                    const audioUrl = track.file.startsWith('http') ? track.file : `https:${track.file}`;
+
+                                    // Duplicate kontrolü
+                                    if (!audioUrls.has(audioUrl)) {
+                                        audioUrls.add(audioUrl);
+                                        audioTracks.push({
+                                            id: trackLabel.toLowerCase().replace(/\s+/g, '_'),
+                                            url: audioUrl,
+                                            lang: trackLabel
+                                        });
+                                        console.log(`   🎵 ${streamName} ses track bulundu: ${trackLabel}`);
+                                    }
                                 }
                             });
                         } catch (e) {
-                            console.log('⚠️  Tracks parse error:', e.message);
+                            console.log(`⚠️  ${streamName} tracks parse error:`, e.message);
                         }
                     }
 
@@ -472,6 +596,97 @@ async function processVideoExtractor(fetchResult) {
     }
 }
 
+// ============ EXTRACTOR: DzenRu ============
+async function extractDzenRu(fetchResult) {
+    const { body, url } = fetchResult;
+    const streams = [];
+    const streamName = fetchResult.metadata?.streamName || 'DzenRu';
+
+    try {
+        // vd*.okcdn.ru pattern'ini ara
+        const regex = /https:\/\/vd\d+\.okcdn\.ru\/\?[^"'\\\s]+/g;
+        const matches = body.match(regex);
+
+        if (!matches || matches.length === 0) {
+            console.log('⚠️  DzenRu: No video links found');
+            return { streams };
+        }
+
+        // Unique link'leri al
+        const uniqueLinks = [...new Set(matches)];
+
+        uniqueLinks.forEach((link, index) => {
+            streams.push({
+                name: streamName,
+                title: `${streamName} ${index > 0 ? index + 1 : ''}`,
+                url: link,
+                type: 'dash',
+                behaviorHints: {
+                    notWebReady: false
+                }
+            });
+        });
+
+        console.log(`✅ DzenRu: Extracted ${streams.length} stream(s)`);
+    } catch (e) {
+        console.log('⚠️  DzenRu extraction error:', e.message);
+    }
+
+    return { streams };
+}
+
+function getDzenRuInstructions(url, referer, streamName = 'DzenRu') {
+    const videoKey = url.split('/').pop();
+    const embedUrl = `https://dzen.ru/embed/${videoKey}`;
+    const randomId = Math.random().toString(36).substring(2, 10);
+    const requestId = `dzenru-${Date.now()}-${randomId}`;
+
+    return {
+        instructions: [{
+            requestId,
+            purpose: 'extract_dzenru',
+            url: embedUrl,
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Referer': referer || url
+            },
+            metadata: { streamName }
+        }]
+    };
+}
+
+// ============ MAIN PROCESSOR ============
+
+async function processVideoExtractor(fetchResult) {
+    const { purpose } = fetchResult;
+
+    switch (purpose) {
+        case 'extract_tauvideo':
+            return await extractTauVideo(fetchResult);
+
+        case 'extract_odnoklassniki':
+            return await extractOdnoklassniki(fetchResult);
+
+        case 'extract_sibnet':
+            return await extractSibNet(fetchResult);
+
+        case 'extract_drive':
+            return await extractDrive(fetchResult);
+
+        case 'extract_cizgiduo':
+        case 'extract_cizgipass':
+            return await extractCizgiDuo(fetchResult);
+
+        case 'extract_dzenru':
+            return await extractDzenRu(fetchResult);
+
+        default:
+            console.log(`⚠️  Unknown extractor purpose: ${purpose}`);
+            return { streams: [] };
+    }
+}
+
 // ============ EXPORTS ============
 
 module.exports = {
@@ -481,6 +696,7 @@ module.exports = {
     extractSibNet,
     extractDrive,
     extractCizgiDuo,
+    extractDzenRu,
 
     // Instruction helpers
     getTauVideoInstructions,
@@ -489,6 +705,7 @@ module.exports = {
     getDriveInstructions,
     getCizgiDuoInstructions,
     getCizgiPassInstructions,
+    getDzenRuInstructions,
 
     // Main processor
     processVideoExtractor

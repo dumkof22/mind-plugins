@@ -362,8 +362,10 @@ async function processFetchResult(fetchResult) {
                         name: streamName,
                         title: `${streamName} Server`,
                         url: src,
+                        type: 'iframe',
                         behaviorHints: {
-                            notWebReady: true
+                            notWebReady: true,
+                            bingeGroup: 'FullHDFilmizlesene-iframe'
                         }
                     });
                 }
@@ -454,7 +456,11 @@ async function processFetchResult(fetchResult) {
                                             name: streamName,
                                             title: `${key.toUpperCase()} Server`,
                                             url: decoded,
-                                            behaviorHints: { notWebReady: false }
+                                            type: 'm3u8',
+                                            behaviorHints: {
+                                                notWebReady: false,
+                                                bingeGroup: `SCX-${key.toUpperCase()}`
+                                            }
                                         });
                                         console.log(`✅ SCX direct stream: ${streamName} - ${decoded.substring(0, 60)}...`);
                                     }
@@ -528,7 +534,11 @@ async function processFetchResult(fetchResult) {
                                                 name: streamName,
                                                 title: `${key.toUpperCase()} Server`,
                                                 url: decoded,
-                                                behaviorHints: { notWebReady: false }
+                                                type: 'm3u8',
+                                                behaviorHints: {
+                                                    notWebReady: false,
+                                                    bingeGroup: `SCX-${key.toUpperCase()}`
+                                                }
                                             });
                                             console.log(`✅ SCX direct stream: ${streamName} - ${decoded.substring(0, 60)}...`);
                                         }
@@ -565,50 +575,50 @@ async function processFetchResult(fetchResult) {
     // ============ EXTRACTOR HANDLERS ============
 
     // RapidVid extraction
-   // RapidVid extraction
-   if (purpose === 'extract_rapidvid') {
-    const streams = [];
-    const streamName = fetchResult.metadata?.streamName || 'RapidVid';
-    const subtitles = [];
+    // RapidVid extraction
+    if (purpose === 'extract_rapidvid') {
+        const streams = [];
+        const streamName = fetchResult.metadata?.streamName || 'RapidVid';
+        const subtitles = [];
 
-    try {
-        // Extract subtitles - Kotlin regex pattern: captions","file":"([^"]+)","label":"([^"]+)"
-        const captionRegex = /captions","file":"([^"]+)","label":"([^"]+)"/g;
-        let captionMatch;
-        const subUrls = new Set();
-        
-        while ((captionMatch = captionRegex.exec(body)) !== null) {
-            let subUrl = captionMatch[1].replace(/\\/g, '');
-            let lang = captionMatch[2];
-            
-            // Unicode karakter dönüşümleri
-            lang = lang
-                .replace(/\\u0131/g, 'ı')
-                .replace(/\\u0130/g, 'İ')
-                .replace(/\\u00fc/g, 'ü')
-                .replace(/\\u00e7/g, 'ç')
-                .replace(/\\u011f/g, 'ğ')
-                .replace(/\\u011e/g, 'Ğ')
-                .replace(/\\u015f/g, 'ş')
-                .replace(/\\u015e/g, 'Ş')
-                .replace(/\\u00f6/g, 'ö')
-                .replace(/\\u00d6/g, 'Ö');
+        try {
+            // Extract subtitles - Kotlin regex pattern: captions","file":"([^"]+)","label":"([^"]+)"
+            const captionRegex = /captions","file":"([^"]+)","label":"([^"]+)"/g;
+            let captionMatch;
+            const subUrls = new Set();
 
-            // URL'i tam yap
-            if (subUrl && !subUrl.startsWith('http')) {
-                subUrl = subUrl.startsWith('//') ? 'https:' + subUrl : 'https://' + subUrl;
+            while ((captionMatch = captionRegex.exec(body)) !== null) {
+                let subUrl = captionMatch[1].replace(/\\/g, '');
+                let lang = captionMatch[2];
+
+                // Unicode karakter dönüşümleri
+                lang = lang
+                    .replace(/\\u0131/g, 'ı')
+                    .replace(/\\u0130/g, 'İ')
+                    .replace(/\\u00fc/g, 'ü')
+                    .replace(/\\u00e7/g, 'ç')
+                    .replace(/\\u011f/g, 'ğ')
+                    .replace(/\\u011e/g, 'Ğ')
+                    .replace(/\\u015f/g, 'ş')
+                    .replace(/\\u015e/g, 'Ş')
+                    .replace(/\\u00f6/g, 'ö')
+                    .replace(/\\u00d6/g, 'Ö');
+
+                // URL'i tam yap
+                if (subUrl && !subUrl.startsWith('http')) {
+                    subUrl = subUrl.startsWith('//') ? 'https:' + subUrl : 'https://' + subUrl;
+                }
+
+                if (subUrl && !subUrls.has(subUrl)) {
+                    subUrls.add(subUrl);
+                    subtitles.push({
+                        id: lang.toLowerCase().replace(/\s+/g, '_'),
+                        lang: lang,
+                        url: subUrl
+                    });
+                    console.log(`   📝 Subtitle found: ${lang} - ${subUrl.substring(0, 50)}...`);
+                }
             }
-
-            if (subUrl && !subUrls.has(subUrl)) {
-                subUrls.add(subUrl);
-                subtitles.push({ 
-                    id: lang.toLowerCase().replace(/\s+/g, '_'),
-                    lang: lang, 
-                    url: subUrl 
-                });
-                console.log(`   📝 Subtitle found: ${lang} - ${subUrl.substring(0, 50)}...`);
-            }
-        }
 
             // Extract video URL - Method 1: file: "..." with hex encoding (Kotlin method)
             let decoded = null;
@@ -649,16 +659,22 @@ async function processFetchResult(fetchResult) {
             }
 
             if (decoded && decoded.startsWith('http')) {
-                streams.push({
+                const streamData = {
                     name: streamName,
                     title: `${streamName}`,
                     url: decoded,
                     type: 'm3u8',
-                    subtitles: subtitles.length > 0 ? subtitles : undefined,
                     behaviorHints: {
-                        notWebReady: false
+                        notWebReady: false,
+                        bingeGroup: 'RapidVid'
                     }
-                });
+                };
+
+                if (subtitles.length > 0) {
+                    streamData.subtitles = subtitles;
+                }
+
+                streams.push(streamData);
                 console.log(`✅ RapidVid: URL extracted, ${subtitles.length} subtitle(s)`);
             } else {
                 console.log('⚠️  RapidVid: No valid URL extracted');
@@ -673,118 +689,126 @@ async function processFetchResult(fetchResult) {
 
     // VidMoxy extraction
     // VidMoxy extraction
-if (purpose === 'extract_vidmoxy') {
-    const streams = [];
-    const streamName = fetchResult.metadata?.streamName || 'VidMoxy';
-    const subtitles = [];
+    if (purpose === 'extract_vidmoxy') {
+        const streams = [];
+        const streamName = fetchResult.metadata?.streamName || 'VidMoxy';
+        const subtitles = [];
 
-    try {
-        // Extract subtitles - Kotlin regex: captions","file":"([^"]+)","label":"([^"]+)"
-        const captionRegex = /captions","file":"([^"]+)","label":"([^"]+)"/g;
-        let captionMatch;
-        const subUrls = new Set();
-        
-        while ((captionMatch = captionRegex.exec(body)) !== null) {
-            let subUrl = captionMatch[1].replace(/\\/g, '');
-            let lang = captionMatch[2];
-            
-            // Unicode karakter dönüşümleri
-            lang = lang
-                .replace(/\\u0131/g, 'ı')
-                .replace(/\\u0130/g, 'İ')
-                .replace(/\\u00fc/g, 'ü')
-                .replace(/\\u00e7/g, 'ç')
-                .replace(/\\u011f/g, 'ğ')
-                .replace(/\\u011e/g, 'Ğ')
-                .replace(/\\u015f/g, 'ş')
-                .replace(/\\u015e/g, 'Ş')
-                .replace(/\\u00f6/g, 'ö')
-                .replace(/\\u00d6/g, 'Ö');
+        try {
+            // Extract subtitles - Kotlin regex: captions","file":"([^"]+)","label":"([^"]+)"
+            const captionRegex = /captions","file":"([^"]+)","label":"([^"]+)"/g;
+            let captionMatch;
+            const subUrls = new Set();
 
-            // URL'i tam yap
-            if (subUrl && !subUrl.startsWith('http')) {
-                subUrl = subUrl.startsWith('//') ? 'https:' + subUrl : 'https://' + subUrl;
-            }
+            while ((captionMatch = captionRegex.exec(body)) !== null) {
+                let subUrl = captionMatch[1].replace(/\\/g, '');
+                let lang = captionMatch[2];
 
-            if (subUrl && !subUrls.has(subUrl)) {
-                subUrls.add(subUrl);
-                subtitles.push({ 
-                    id: lang.toLowerCase().replace(/\s+/g, '_'),
-                    lang: lang, 
-                    url: subUrl 
-                });
-                console.log(`   📝 Subtitle found: ${lang} - ${subUrl.substring(0, 50)}...`);
-            }
-        }
+                // Unicode karakter dönüşümleri
+                lang = lang
+                    .replace(/\\u0131/g, 'ı')
+                    .replace(/\\u0130/g, 'İ')
+                    .replace(/\\u00fc/g, 'ü')
+                    .replace(/\\u00e7/g, 'ç')
+                    .replace(/\\u011f/g, 'ğ')
+                    .replace(/\\u011e/g, 'Ğ')
+                    .replace(/\\u015f/g, 'ş')
+                    .replace(/\\u015e/g, 'Ş')
+                    .replace(/\\u00f6/g, 'ö')
+                    .replace(/\\u00d6/g, 'Ö');
 
-        // Method 1: Direct file: "..." pattern (Kotlin: file": "(.*)",)
-        let decoded = null;
-        const fileMatch = body.match(/file:\s*"([^"]+)",/);
-        
-        if (fileMatch && fileMatch[1]) {
-            const extractedValue = fileMatch[1];
-            
-            // Hex encoded kontrolü (\\x formatında)
-            if (extractedValue.includes('\\x')) {
-                const hexParts = extractedValue.split('\\x').filter(x => x.length > 0);
-                const bytes = hexParts.map(hex => parseInt(hex, 16));
-                decoded = String.fromCharCode(...bytes);
-                console.log(`✅ VidMoxy: Method 1 (direct hex) success`);
-            }
-        }
-
-        // Method 2: Packed JS with eval(function...) (Kotlin fallback method)
-        if (!decoded || !decoded.startsWith('http')) {
-            const evaljwMatch = body.match(/\};\s*(eval\(function[\s\S]*?)var played = \d+;/);
-            
-            if (evaljwMatch) {
-                let jwSetup = getAndUnpack(getAndUnpack(evaljwMatch[1]));
-                jwSetup = jwSetup.replace(/\\\\/g, '\\');
-
-                // Kotlin regex: file":"(.*)","label
-                const fileMatch2 = jwSetup.match(/file:"([^"]+)","label/);
-                
-                if (fileMatch2) {
-                    const extractedValue = fileMatch2[1];
-                    // Remove \\x prefix and parse hex (Kotlin: replace("\\\\x", ""))
-                    const cleanValue = extractedValue.replace(/\\x/g, '');
-                    const bytes = cleanValue.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || [];
-                    decoded = String.fromCharCode(...bytes);
-                    console.log(`✅ VidMoxy: Method 2 (unpacked hex) success`);
-                } else {
-                    console.log('⚠️  VidMoxy: No file match in unpacked JS');
+                // URL'i tam yap
+                if (subUrl && !subUrl.startsWith('http')) {
+                    subUrl = subUrl.startsWith('//') ? 'https:' + subUrl : 'https://' + subUrl;
                 }
+
+                if (subUrl && !subUrls.has(subUrl)) {
+                    subUrls.add(subUrl);
+                    subtitles.push({
+                        id: lang.toLowerCase().replace(/\s+/g, '_'),
+                        lang: lang,
+                        url: subUrl
+                    });
+                    console.log(`   📝 Subtitle found: ${lang} - ${subUrl.substring(0, 50)}...`);
+                }
+            }
+
+            // Method 1: Direct file: "..." pattern (Kotlin: file": "(.*)",)
+            let decoded = null;
+            const fileMatch = body.match(/file:\s*"([^"]+)",/);
+
+            if (fileMatch && fileMatch[1]) {
+                const extractedValue = fileMatch[1];
+
+                // Hex encoded kontrolü (\\x formatında)
+                if (extractedValue.includes('\\x')) {
+                    const hexParts = extractedValue.split('\\x').filter(x => x.length > 0);
+                    const bytes = hexParts.map(hex => parseInt(hex, 16));
+                    decoded = String.fromCharCode(...bytes);
+                    console.log(`✅ VidMoxy: Method 1 (direct hex) success`);
+                }
+            }
+
+            // Method 2: Packed JS with eval(function...) (Kotlin fallback method)
+            if (!decoded || !decoded.startsWith('http')) {
+                const evaljwMatch = body.match(/\};\s*(eval\(function[\s\S]*?)var played = \d+;/);
+
+                if (evaljwMatch) {
+                    let jwSetup = getAndUnpack(getAndUnpack(evaljwMatch[1]));
+                    jwSetup = jwSetup.replace(/\\\\/g, '\\');
+
+                    // Kotlin regex: file":"(.*)","label
+                    const fileMatch2 = jwSetup.match(/file:"([^"]+)","label/);
+
+                    if (fileMatch2) {
+                        const extractedValue = fileMatch2[1];
+                        // Remove \\x prefix and parse hex (Kotlin: replace("\\\\x", ""))
+                        const cleanValue = extractedValue.replace(/\\x/g, '');
+                        const bytes = cleanValue.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || [];
+                        decoded = String.fromCharCode(...bytes);
+                        console.log(`✅ VidMoxy: Method 2 (unpacked hex) success`);
+                    } else {
+                        console.log('⚠️  VidMoxy: No file match in unpacked JS');
+                    }
+                } else {
+                    console.log('⚠️  VidMoxy: No packed JS found (eval not found)');
+                }
+            }
+
+            // Final stream creation
+            if (decoded && decoded.startsWith('http')) {
+                const streamData = {
+                    name: streamName,
+                    title: `${streamName}`,
+                    url: decoded,
+                    type: 'm3u8',
+                    behaviorHints: {
+                        notWebReady: false,
+                        bingeGroup: 'VidMoxy'
+                    }
+                };
+
+                if (subtitles.length > 0) {
+                    streamData.subtitles = subtitles;
+                }
+
+                streams.push(streamData);
+                console.log(`✅ VidMoxy: Final URL extracted with ${subtitles.length} subtitle(s)`);
+                console.log(`   URL: ${decoded.substring(0, 80)}...`);
             } else {
-                console.log('⚠️  VidMoxy: No packed JS found (eval not found)');
+                console.log('⚠️  VidMoxy: No valid URL extracted');
+                if (decoded) {
+                    console.log(`   Decoded value: ${decoded.substring(0, 100)}`);
+                }
             }
+        } catch (e) {
+            console.log('⚠️  VidMoxy extraction error:', e.message);
+            console.log('   Stack:', e.stack);
         }
 
-        // Final stream creation
-        if (decoded && decoded.startsWith('http')) {
-            streams.push({
-                name: streamName,
-                title: `${streamName}`,
-                url: decoded,
-                type: 'm3u8',
-                subtitles: subtitles.length > 0 ? subtitles : undefined,
-                behaviorHints: { notWebReady: false }
-            });
-            console.log(`✅ VidMoxy: Final URL extracted with ${subtitles.length} subtitle(s)`);
-            console.log(`   URL: ${decoded.substring(0, 80)}...`);
-        } else {
-            console.log('⚠️  VidMoxy: No valid URL extracted');
-            if (decoded) {
-                console.log(`   Decoded value: ${decoded.substring(0, 100)}`);
-            }
-        }
-    } catch (e) {
-        console.log('⚠️  VidMoxy extraction error:', e.message);
-        console.log('   Stack:', e.stack);
+        console.log(`✅ VidMoxy extracted: ${streams.length} stream(s)`);
+        return { streams };
     }
-
-    console.log(`✅ VidMoxy extracted: ${streams.length} stream(s)`);
-    return { streams };
-}
 
     // TurboImgz extraction
     if (purpose === 'extract_turboimgz') {
@@ -800,7 +824,10 @@ if (purpose === 'extract_vidmoxy') {
                     title: streamName,
                     url: videoUrl,
                     type: 'm3u8',
-                    behaviorHints: { notWebReady: false }
+                    behaviorHints: {
+                        notWebReady: false,
+                        bingeGroup: 'TurboImgz'
+                    }
                 });
                 console.log(`✅ ${streamName}: URL extracted - ${videoUrl.substring(0, 60)}...`);
             } else {
@@ -830,7 +857,10 @@ if (purpose === 'extract_vidmoxy') {
                     title: `${streamName}`,
                     url: masterUrl,
                     type: 'm3u8',
-                    behaviorHints: { notWebReady: false }
+                    behaviorHints: {
+                        notWebReady: false,
+                        bingeGroup: 'TurkeyPlayer'
+                    }
                 });
                 console.log(`✅ TurkeyPlayer: URL built - id=${videoData.id}, md5=${videoData.md5.substring(0, 8)}...`);
             } else {
@@ -932,6 +962,7 @@ if (purpose === 'extract_vidmoxy') {
     if (purpose === 'playlist_trstx' || purpose === 'playlist_sobreatsesuyp') {
         const streams = [];
         const streamName = fetchResult.metadata?.streamName || 'TRsTX/Sobreatsesuyp';
+        const bingeGroup = purpose === 'playlist_trstx' ? 'TRsTX' : 'Sobreatsesuyp';
 
         try {
             const m3u8Url = body.trim();
@@ -941,7 +972,10 @@ if (purpose === 'extract_vidmoxy') {
                     title: streamName,
                     url: m3u8Url,
                     type: 'm3u8',
-                    behaviorHints: { notWebReady: false }
+                    behaviorHints: {
+                        notWebReady: false,
+                        bingeGroup: bingeGroup
+                    }
                 });
                 console.log(`✅ ${streamName}: Final M3U8 URL - ${m3u8Url.substring(0, 60)}...`);
             } else {
