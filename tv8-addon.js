@@ -1,3 +1,4 @@
+
 const cheerio = require('cheerio');
 
 // Manifest tanımı
@@ -125,35 +126,71 @@ async function handleStream(args) {
 
     console.log(`🎬 [Tv8 Stream] Direct video URL: ${videoUrl.substring(0, 80)}...`);
 
-    // Direkt stream döndür
-    const streams = [];
-
+    // Video URL direkt .mp4 ise, instruction olmadan metadata ile döndür
     if (videoUrl.includes('.mp4')) {
-        // 720p ve 480p versiyonları döndür
+        // HTTPS'e çevir
         const httpsUrl = videoUrl.replace('http://', 'https://');
         const url720p = httpsUrl.replace('.mp4', '-720p.mp4');
         const url480p = httpsUrl.replace('.mp4', '-480p.mp4');
 
-        streams.push({
-            name: 'Tv8',
-            title: 'Tv8 - 720p',
-            url: url720p,
-            behaviorHints: {
-                notWebReady: false
-            }
-        });
+        console.log(`✅ [Tv8 Stream] Returning direct video URLs (no fetch needed)`);
 
-        streams.push({
-            name: 'Tv8',
-            title: 'Tv8 - 480p',
-            url: url480p,
-            behaviorHints: {
-                notWebReady: false
+        // Direkt stream metadata ile döndür
+        return {
+            instructions: [],
+            metadata: {
+                directStreams: [
+                    {
+                        name: 'Tv8',
+                        title: 'Tv8 - 720p',
+                        url: url720p,
+                        behaviorHints: {
+                            notWebReady: false
+                        }
+                    },
+                    {
+                        name: 'Tv8',
+                        title: 'Tv8 - 480p',
+                        url: url480p,
+                        behaviorHints: {
+                            notWebReady: false
+                        }
+                    }
+                ]
             }
-        });
+        };
     }
 
-    return { streams };
+    // .mp4 değilse, boş döndür
+    console.log(`⚠️  [Tv8 Stream] Not a direct MP4 URL`);
+    return { instructions: [] };
+}
+
+// ============ HELPER FUNCTIONS ============
+
+function finalizeMeta(originalMeta, accumulatedVideos) {
+    if (!originalMeta) {
+        console.log('❌ No originalMeta to finalize');
+        return { meta: null };
+    }
+
+    // Tarihe göre sırala (eskiden yeniye)
+    accumulatedVideos.sort((a, b) => {
+        const dateA = a.released ? new Date(a.released).getTime() : 0;
+        const dateB = b.released ? new Date(b.released).getTime() : 0;
+        return dateA - dateB;
+    });
+
+    // Episode numarası ekle
+    const videosWithEpisodes = accumulatedVideos.map((video, idx) => ({
+        ...video,
+        episode: idx + 1,
+        season: 1
+    }));
+
+    originalMeta.videos = videosWithEpisodes;
+    console.log(`✅ Finalized meta with ${videosWithEpisodes.length} episodes`);
+    return { meta: originalMeta };
 }
 
 // ============ FETCH RESULT PROCESSOR ============
@@ -163,6 +200,14 @@ async function processFetchResult(fetchResult) {
 
     console.log(`\n⚙️ [Tv8 Process] Purpose: ${purpose}`);
     console.log(`   URL: ${url?.substring(0, 80)}...`);
+    console.log(`   Body size: ${body?.length || 0} bytes`);
+    console.log(`   Metadata: ${metadata ? JSON.stringify(metadata).substring(0, 100) : 'none'}`);
+
+    // Direkt stream (metadata ile gelir, body yok)
+    if (!body && metadata?.directStreams) {
+        console.log(`📺 [Tv8 Process] Processing direct streams from metadata`);
+        return { streams: metadata.directStreams };
+    }
 
     // All Content (search için)
     if (purpose === 'all_content') {
@@ -259,12 +304,19 @@ async function processFetchResult(fetchResult) {
         try {
             const $ = cheerio.load(body);
 
+            console.log(`🔍 [Tv8 Meta Parse] Starting...`);
+            console.log(`   URL: ${url?.substring(0, 80)}`);
+
             const title = $('h1').text().trim();
             if (!title) {
+                console.log('❌ No title found');
                 return { meta: null };
             }
 
+            console.log(`   Title: ${title}`);
+
             const poster = $('div.item img[src]').attr('src');
+            console.log(`   Poster: ${poster?.substring(0, 60)}`);
 
             // data-id'yi al
             const dataId = $('li.tabs a.tab[data-id]').attr('data-id');
@@ -275,16 +327,23 @@ async function processFetchResult(fetchResult) {
 
             console.log(`📺 Program data-id: ${dataId}`);
 
-            // Bölümleri almak için instruction döndür
-            const instructions = [];
+            // İlk sayfayı fetch etmek için tek instruction döndür
             const randomId = Math.random().toString(36).substring(2, 10);
+            const originalMeta = {
+                id: 'tv8:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
+                type: 'series',
+                name: title,
+                poster: poster || null,
+                background: poster || null,
+                description: `Tv8 ${title} programı`
+            };
 
-            // İlk 5 sayfayı çek
-            for (let page = 1; page <= 5; page++) {
-                instructions.push({
-                    requestId: `tv8-episodes-${page}-${Date.now()}-${randomId}`,
+            console.log(`✅ [Tv8 Meta] Creating first page instruction`);
+            return {
+                instructions: [{
+                    requestId: `tv8-episodes-1-${Date.now()}-${randomId}`,
                     purpose: 'meta_episodes',
-                    url: `${BASE_URL}/Ajax/icerik/haberler/${dataId}/${page}?tip=videolar&id=${dataId}&sayfa=${page}&tip=videolar&hedef=%23tab-alt-${dataId}-icerik`,
+                    url: `${BASE_URL}/Ajax/icerik/haberler/${dataId}/1?tip=videolar&id=${dataId}&sayfa=1&tip=videolar&hedef=%23tab-alt-${dataId}-icerik`,
                     method: 'GET',
                     headers: {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
@@ -293,41 +352,49 @@ async function processFetchResult(fetchResult) {
                         'Referer': BASE_URL
                     },
                     metadata: {
-                        page,
-                        originalMeta: {
-                            id: 'tv8:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
-                            type: 'series',
-                            name: title,
-                            poster: poster || null,
-                            background: poster || null,
-                            description: `Tv8 ${title} programı`
-                        }
+                        page: 1,
+                        maxPages: 5,
+                        accumulatedVideos: [],
+                        originalMeta: originalMeta,
+                        dataId: dataId
                     }
-                });
-            }
-
-            return { instructions };
+                }]
+            };
         } catch (error) {
             console.log('❌ Meta parse error:', error.message);
             return { meta: null };
         }
     }
 
-    // Meta Episodes
+    // Meta Episodes - Bölümleri topla
     if (purpose === 'meta_episodes') {
         try {
             const responseText = body.trim();
+            const page = metadata?.page || 1;
+            const maxPages = metadata?.maxPages || 5;
+            const dataId = metadata?.dataId;
+            const accumulatedVideos = metadata?.accumulatedVideos || [];
+            const originalMeta = metadata?.originalMeta;
+
+            console.log(`📄 Page ${page}: Processing...`);
 
             // Boş veya false response kontrolü
             if (responseText === 'false' || responseText === '' || responseText === 'null') {
-                console.log('⚠️  No more episodes (empty response)');
-                return { videos: [] };
+                console.log(`⚠️  Page ${page}: No more episodes (empty response)`);
+
+                // Finalize meta
+                if (accumulatedVideos.length > 0 && originalMeta) {
+                    return finalizeMeta(originalMeta, accumulatedVideos);
+                }
+
+                return { meta: originalMeta || null };
             }
 
             const jsonArray = JSON.parse(responseText);
-            const videos = metadata?.videos || [];
+            console.log(`📄 Page ${page}: Found ${jsonArray.length} episodes`);
 
-            jsonArray.forEach((episodeJson, index) => {
+            // Parse episodes
+            jsonArray.forEach((episodeJson) => {
                 const title = episodeJson.baslik || '';
                 const duration = episodeJson.video_suresi || '';
                 const videoUrl = episodeJson.tip_deger || '';
@@ -342,13 +409,13 @@ async function processFetchResult(fetchResult) {
                         posterUrl = `https://img.tv8.com.tr/${originalPath}`;
                     }
                 } catch (e) {
-                    // Poster parse hatası
+                    // Poster parse error
                 }
 
                 if (title && videoUrl) {
                     const episodeTitle = duration ? `${title} (${duration})` : title;
 
-                    // Tarih parse
+                    // Parse date
                     let dateTimestamp = null;
                     try {
                         if (dateString) {
@@ -356,12 +423,12 @@ async function processFetchResult(fetchResult) {
                             dateTimestamp = parsedDate.getTime();
                         }
                     } catch (e) {
-                        // Tarih parse hatası
+                        // Date parse error
                     }
 
                     const videoId = 'tv8:' + Buffer.from(videoUrl).toString('base64').replace(/=/g, '');
 
-                    videos.push({
+                    accumulatedVideos.push({
                         id: videoId,
                         title: episodeTitle,
                         released: dateTimestamp ? new Date(dateTimestamp).toISOString().split('T')[0] : null,
@@ -370,40 +437,61 @@ async function processFetchResult(fetchResult) {
                 }
             });
 
-            // Son sayfa mı kontrol et
-            const page = metadata?.page || 1;
-            const isLastPage = jsonArray.length === 0;
+            console.log(`🔄 Total accumulated: ${accumulatedVideos.length} episodes`);
 
-            if (isLastPage || page >= 5) {
-                // Tüm bölümler toplandı, meta döndür
+            // Son sayfa mı kontrol et
+            const isLastPage = jsonArray.length === 0;
+            const reachedMaxPages = page >= maxPages;
+
+            if (isLastPage || reachedMaxPages) {
+                console.log(`✅ Reached end (page ${page}, last=${isLastPage}, max=${reachedMaxPages})`);
+                return finalizeMeta(originalMeta, accumulatedVideos);
+            }
+
+            // Sonraki sayfa için instruction oluştur
+            const nextPage = page + 1;
+            const randomId = Math.random().toString(36).substring(2, 10);
+
+            console.log(`➡️  Fetching next page: ${nextPage}`);
+
+            return {
+                instructions: [{
+                    requestId: `tv8-episodes-${nextPage}-${Date.now()}-${randomId}`,
+                    purpose: 'meta_episodes',
+                    url: `${BASE_URL}/Ajax/icerik/haberler/${dataId}/${nextPage}?tip=videolar&id=${dataId}&sayfa=${nextPage}&tip=videolar&hedef=%23tab-alt-${dataId}-icerik`,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json, text/javascript, */*; q=0.01',
+                        'Referer': BASE_URL
+                    },
+                    metadata: {
+                        page: nextPage,
+                        maxPages: maxPages,
+                        accumulatedVideos: accumulatedVideos,
+                        originalMeta: originalMeta,
+                        dataId: dataId
+                    }
+                }]
+            };
+        } catch (error) {
+            console.log('❌ Episodes parse error:', error.message);
+
+            // Hata olsa bile toplanan videoları döndürmeyi dene
+            const accumulatedVideos = metadata?.accumulatedVideos || [];
+            if (accumulatedVideos.length > 0) {
                 const originalMeta = metadata?.originalMeta;
                 if (originalMeta) {
-                    // Tarihe göre sırala ve episode numarası ver
-                    videos.sort((a, b) => {
-                        const dateA = a.released ? new Date(a.released).getTime() : 0;
-                        const dateB = b.released ? new Date(b.released).getTime() : 0;
-                        return dateA - dateB;
-                    });
-
-                    // Episode numarası ekle
-                    const videosWithEpisodes = videos.map((video, idx) => ({
-                        ...video,
-                        episode: idx + 1
-                    }));
-
-                    originalMeta.videos = videosWithEpisodes;
-                    return { meta: originalMeta };
+                    return finalizeMeta(originalMeta, accumulatedVideos);
                 }
             }
 
-            // Devam ediyor
-            return { videos };
-        } catch (error) {
-            console.log('❌ Episodes parse error:', error.message);
-            return { videos: [] };
+            return { meta: null };
         }
     }
 
+    console.log(`⚠️ [Tv8] Unhandled purpose: ${purpose}`);
     return { ok: true };
 }
 

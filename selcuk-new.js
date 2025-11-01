@@ -56,7 +56,7 @@ const manifest = {
 };
 
 const BASE_URL = 'https://www.sporcafe-782a1a67028f.xyz';
-const PLAYER_BASE_URL = 'https://main.uxsyplayer7d716e84ac.click/index.php?id=';
+const PLAYER_BASE_URL = 'https://main.uxsyplayerb03b3c895b.click/index.php?id=';
 
 // Kanal kategorilerine göre regex filtreleme
 function getChannelFilter(catalogId) {
@@ -162,14 +162,7 @@ function parseChannels($, catalogId, body) {
     const channels = [];
 
     // JavaScript'teki channelsData array'ini çıkar
-    // İlk önce eski pattern'i deneyelim
-    let scriptMatch = body.match(/const\s+channelsData\s*=\s*(\[[\s\S]*?\])\s*;/);
-
-    // Eğer bulunamazsa, daha esnek bir pattern deneyelim
-    if (!scriptMatch) {
-        scriptMatch = body.match(/channelsData\s*=\s*(\[[\s\S]*?\])/);
-    }
-
+    const scriptMatch = body.match(/const\s+channelsData\s*=\s*(\[[\s\S]*?\])\s*;/);
     if (!scriptMatch) {
         console.log('⚠️ channelsData bulunamadı');
         return channels;
@@ -178,7 +171,7 @@ function parseChannels($, catalogId, body) {
     let channelsData;
     try {
         // JSON.parse için noktalı virgülü çıkarıyoruz
-        const jsonStr = scriptMatch[1].trim().replace(/;$/, '');
+        const jsonStr = scriptMatch[1].trim();
         channelsData = JSON.parse(jsonStr);
         console.log(`✓ channelsData parse edildi: ${channelsData.length} kanal`);
     } catch (e) {
@@ -207,8 +200,6 @@ function parseChannels($, catalogId, body) {
     channelsData.forEach(channel => {
         const streamId = channel.stream_url;
         const channelName = channel.name;
-        const logoUrl = channel.logo_url || '';
-        const category = channel.category || '';
 
         if (!streamId || !channelName) return;
 
@@ -223,19 +214,13 @@ function parseChannels($, catalogId, body) {
 
         const id = 'selcuk:channel:' + Buffer.from(fullUrl).toString('base64').replace(/=/g, '');
 
-        // Poster URL'sini oluştur
-        let posterUrl = `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(channelName)}`;
-        if (logoUrl && logoUrl.startsWith('/assets/')) {
-            posterUrl = BASE_URL + logoUrl;
-        }
-
         channels.push({
             id: id,
             type: 'tv',
             name: `📺 ${channelName}`,
-            poster: posterUrl,
+            poster: `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(channelName)}`,
             posterShape: 'square',
-            description: `${channelName} - Canlı Yayın${category ? ' - ' + category : ''}`
+            description: `${channelName} - Canlı Yayın`
         });
     });
 
@@ -247,14 +232,7 @@ function parseLiveMatches($, body) {
     const matches = [];
 
     // JavaScript'teki channelsData array'ini çıkar
-    // İlk önce eski pattern'i deneyelim
-    let scriptMatch = body.match(/const\s+channelsData\s*=\s*(\[[\s\S]*?\])\s*;/);
-
-    // Eğer bulunamazsa, daha esnek bir pattern deneyelim
-    if (!scriptMatch) {
-        scriptMatch = body.match(/channelsData\s*=\s*(\[[\s\S]*?\])/);
-    }
-
+    const scriptMatch = body.match(/const\s+channelsData\s*=\s*(\[[\s\S]*?\])\s*;/);
     if (!scriptMatch) {
         console.log('⚠️ channelsData bulunamadı (live matches)');
         return matches;
@@ -263,7 +241,7 @@ function parseLiveMatches($, body) {
     let channelsData;
     try {
         // JSON.parse için noktalı virgülü çıkarıyoruz
-        const jsonStr = scriptMatch[1].trim().replace(/;$/, '');
+        const jsonStr = scriptMatch[1].trim();
         channelsData = JSON.parse(jsonStr);
         console.log(`✓ channelsData parse edildi: ${channelsData.length} kanal (live matches)`);
     } catch (e) {
@@ -276,8 +254,6 @@ function parseLiveMatches($, body) {
     channelsData.forEach(channel => {
         const streamId = channel.stream_url;
         const matchName = channel.name;
-        const logoUrl = channel.logo_url || '';
-        const category = channel.category || '';
 
         if (!streamId || !matchName) return;
 
@@ -286,19 +262,13 @@ function parseLiveMatches($, body) {
 
         const id = 'selcuk:match:' + Buffer.from(fullUrl).toString('base64').replace(/=/g, '');
 
-        // Poster URL'sini oluştur
-        let posterUrl = `https://via.placeholder.com/300x450/ff0000/ffffff?text=${encodeURIComponent('CANLI')}`;
-        if (logoUrl && logoUrl.startsWith('/assets/')) {
-            posterUrl = BASE_URL + logoUrl;
-        }
-
         matches.push({
             id: id,
             type: 'tv',
             name: `🔴 ${matchName}`,
-            poster: posterUrl,
+            poster: `https://via.placeholder.com/300x450/ff0000/ffffff?text=${encodeURIComponent('CANLI')}`,
             posterShape: 'square',
-            description: `Canlı: ${matchName}${category ? ' - ' + category : ''}`
+            description: `Canlı: ${matchName}`
         });
     });
 
@@ -363,7 +333,6 @@ async function processFetchResult(fetchResult) {
             /["']?src["']?\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i,
             /["']?url["']?\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i,
             /["']?hlsUrl["']?\s*:\s*["']([^"']+\.m3u8[^"']*)["']/i,
-            /const\s+hlsUrl\s*=\s*["']([^"']+\.m3u8[^"']*)["']/i,
             /(https?:\/\/[^"'\s<>]+\.m3u8[^\s"'<>]*)/gi
         ];
 
@@ -400,10 +369,20 @@ async function processFetchResult(fetchResult) {
             const m3u8Origin = new URL(m3u8Link).origin;
             const playerReferer = new URL(fullPlayerUrl).origin + '/';
 
+            // Video parçaları için header'lar
             const streamHeaders = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Encoding': 'gzip, deflate, br, zstd',
+                'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+                'Origin': playerReferer.replace(/\/$/, ''),
                 'Referer': playerReferer,
-                'Origin': m3u8Origin
+                'Sec-Ch-Ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+                'Sec-Ch-Ua-Mobile': '?0',
+                'Sec-Ch-Ua-Platform': '"Windows"',
+                'Sec-Fetch-Dest': 'empty',
+                'Sec-Fetch-Mode': 'cors',
+                'Sec-Fetch-Site': 'cross-site',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
             };
 
             streams.push({

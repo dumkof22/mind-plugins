@@ -605,6 +605,39 @@ async function processFetchResult(fetchResult) {
 
                 console.log('   🎯 Detected: ContentX/Pichive extractor');
 
+                // 🔧 ÖNCELİK 0: Flutter WebView source2.php'yi iframe içinde çağırdı mı kontrol et
+                if (body.includes('<!-- SOURCE2_PHP_RESULT -->')) {
+                    console.log('   ⚡ Found embedded source2.php result from WebView!');
+
+                    const source2Match = body.match(/<!-- SOURCE2_PHP_RESULT -->\s*([\s\S]*?)\s*<!-- \/SOURCE2_PHP_RESULT -->/);
+                    if (source2Match && source2Match[1]) {
+                        const source2Body = source2Match[1].trim();
+                        console.log(`   ⚡ Extracted source2.php body: ${source2Body.length} bytes`);
+
+                        // source2.php body'sini direkt işle - contentx_source logic'ini simüle et
+                        // purpose'u contentx_source'a çevir ve recursive olarak processResult'ı çağır
+                        const urlParams = new URLSearchParams(new URL(url).search);
+                        const vParam = urlParams.get('v');
+                        const domain = new URL(url).origin;
+                        const source2Url = `${domain}/source2.php?v=${vParam}`;
+
+                        // Fake result object oluştur (contentx_source için)
+                        return await processFetchResult({
+                            body: source2Body,
+                            purpose: 'contentx_source',
+                            url: source2Url,
+                            metadata: {
+                                streamName,
+                                originalUrl: metadata?.originalUrl,
+                                iframeUrl: url,
+                                extractorName: 'Pichive',
+                                domain: domain,
+                                webViewAttempted: true  // Zaten WebView'dan geldi
+                            }
+                        });
+                    }
+                }
+
                 // 🔧 ÖNCELİK 1: iframe.php URL'sini source2.php'ye çevir
                 // Eğer URL iframe.php ise, query parametresini alıp source2.php'ye yönlendir
                 if (url.includes('iframe.php')) {
@@ -635,14 +668,16 @@ async function processFetchResult(fetchResult) {
                                     'Referer': url,
                                     'Origin': domain
                                 },
-                                forceWebView: false,
+                                forceWebView: true,  // ⚡ Cloudflare bypass için WebView kullan
                                 allowInsecure: true,
                                 metadata: {
                                     streamName,
                                     originalUrl: metadata?.originalUrl,
                                     iframeUrl: url,
                                     extractorName: 'Pichive',
-                                    domain: domain
+                                    domain: domain,
+                                    waitTime: 3000,  // JavaScript için 3 saniye bekle
+                                    webViewAttempted: true  // ⚡ Sonsuz döngü önleme
                                 }
                             }]
                         };
@@ -863,10 +898,60 @@ async function processFetchResult(fetchResult) {
             console.log(`📦 [ContentX Source] Request URL: ${url}`);
             console.log(`📦 [ContentX Source] Referer: ${metadata?.iframeUrl || 'none'}`);
 
+            // ⚡ Cloudflare/Bot detection kontrolü
+            if ((body.includes('Attention Required') && body.includes('Cloudflare')) ||
+                body.includes('Just a moment...') ||
+                (body.length < 200 && body.includes('<!DOCTYPE html>'))) {
+                console.log('   ⚠️ Bot detection / Cloudflare detected in source2.php');
+
+                // Eğer zaten WebView denediyse, sonsuz döngüyü önle
+                if (metadata?.webViewAttempted) {
+                    console.log('   ❌ Cloudflare bypass failed after WebView attempt - giving up');
+                    return { streams: [] };
+                }
+
+                console.log('   🔄 Requesting WebView retry for source2.php...');
+
+                // WebView ile tekrar dene
+                const randomId = Math.random().toString(36).substring(2, 10);
+                return {
+                    instructions: [{
+                        requestId: `dizist-source2-webview-${Date.now()}-${randomId}`,
+                        purpose: 'contentx_source',  // AYNI purpose
+                        url: url,  // AYNI URL
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json, text/plain, */*',
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                            'Referer': metadata?.iframeUrl || url,
+                            'Origin': metadata?.domain || new URL(url).origin
+                        },
+                        forceWebView: true,  // ⚡ WebView ile tekrar dene
+                        allowInsecure: true,
+                        metadata: {
+                            ...metadata,
+                            webViewAttempted: true,  // ⚡ Sonsuz döngü önleme
+                            waitTime: 5000  // 5 saniye bekle (JavaScript için)
+                        }
+                    }]
+                };
+            }
+
             // Ana stream için M3U8 linkini bul
             let m3uLink = null;
+
+            // ⚡ WebView bazen JSON'ı HTML içinde döndürüyor - temizle
+            let cleanBody = body;
+            if (body.includes('<pre') && body.includes('</pre>')) {
+                const preMatch = body.match(/<pre[^>]*>([\s\S]*?)<\/pre>/i);
+                if (preMatch && preMatch[1]) {
+                    cleanBody = preMatch[1].trim();
+                    console.log(`📦 [ContentX Source] Extracted JSON from <pre> tag`);
+                }
+            }
+
             try {
-                const jsonData = JSON.parse(body);
+                const jsonData = JSON.parse(cleanBody);
                 console.log(`📦 [ContentX Source] JSON parsed successfully`);
                 console.log(`📦 [ContentX Source] JSON keys: ${Object.keys(jsonData).join(', ')}`);
                 console.log(`📦 [ContentX Source] Full JSON: ${JSON.stringify(jsonData)}`);
@@ -877,6 +962,35 @@ async function processFetchResult(fetchResult) {
                     if (jsonData.expired === true) {
                         console.log(`⏱️ [ContentX Source] Video link has expired`);
                     }
+
+                    // ⚡ Eğer WebView denenmemişse, WebView ile tekrar dene (bot detection olabilir)
+                    if (!metadata?.webViewAttempted) {
+                        console.log(`   🔄 State false - maybe bot detection? Trying WebView...`);
+
+                        const randomId = Math.random().toString(36).substring(2, 10);
+                        return {
+                            instructions: [{
+                                requestId: `dizist-state-false-webview-${Date.now()}-${randomId}`,
+                                purpose: 'contentx_source',
+                                url: url,
+                                method: 'GET',
+                                headers: {
+                                    'Accept': 'application/json, text/plain, */*',
+                                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                                    'Referer': metadata?.iframeUrl || url,
+                                    'Origin': metadata?.domain || new URL(url).origin
+                                },
+                                forceWebView: true,
+                                allowInsecure: true,
+                                metadata: {
+                                    ...metadata,
+                                    webViewAttempted: true,
+                                    waitTime: 5000
+                                }
+                            }]
+                        };
+                    }
+
                     return { streams: [] };
                 }
 

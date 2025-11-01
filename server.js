@@ -314,6 +314,10 @@ app.post('/api/fetch-result', async (req, res) => {
             console.log(`   📺 Returned meta: ${result.meta.name}`);
         } else if (result.streams) {
             console.log(`   🎬 Found ${result.streams.length} stream(s)`);
+        } else if (result.instructions) {
+            console.log(`   🔄 Returning ${result.instructions.length} more instruction(s)`);
+        } else if (result.accumulatedVideos !== undefined) {
+            console.log(`   📦 Accumulated ${result.accumulatedVideos.length} video(s), continuing...`);
         }
 
         res.json({

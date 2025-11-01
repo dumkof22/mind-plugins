@@ -379,8 +379,164 @@ async function processFetchResult(fetchResult) {
         try {
             const streams = [];
             const streamName = metadata?.streamName || '4KFilmIzlesene';
+            const iframeUrl = url;
 
-            // M3U8 pattern'lerini ara
+            // RapidVid özel extraction
+            if (iframeUrl.includes('rapidvid.net')) {
+                console.log('   🔍 RapidVid detected, using special extraction...');
+
+                // Altyazıları çek
+                const subtitles = [];
+                const subUrls = new Set();
+
+                // Method 1: jwSetup.tracks array'inden al (JSON parse ile)
+                try {
+                    const tracksMatch = body.match(/jwSetup\.tracks\s*=\s*(\[[\s\S]*?\]);/);
+                    if (tracksMatch) {
+                        const tracksJson = tracksMatch[1];
+                        const tracks = JSON.parse(tracksJson);
+
+                        for (const track of tracks) {
+                            if (track.kind === 'captions' && track.file && track.label) {
+                                const subUrl = track.file.replace(/\\/g, '');
+                                let subLang = track.label;
+
+                                // Dil temizleme
+                                subLang = subLang
+                                    .replace(/\\u0131/g, 'ı')
+                                    .replace(/\\u0130/g, 'İ')
+                                    .replace(/\\u00fc/g, 'ü')
+                                    .replace(/\\u00e7/g, 'ç')
+                                    .replace(/\\u011f/g, 'ğ')
+                                    .replace(/\\u015f/g, 'ş');
+
+                                const keywords = ['tur', 'tr', 'türkçe', 'turkce'];
+                                const language = subLang.includes('Forced') ? 'Turkish Forced' :
+                                    keywords.some(k => subLang.toLowerCase().includes(k)) ? 'Turkish' : subLang;
+
+                                const finalUrl = subUrl.startsWith('http') ? subUrl : `https:${subUrl}`;
+                                if (!subUrls.has(finalUrl)) {
+                                    subUrls.add(finalUrl);
+                                    subtitles.push({
+                                        id: language.toLowerCase().replace(/\s+/g, '_'),
+                                        url: finalUrl,
+                                        lang: language
+                                    });
+                                    console.log(`   📝 Subtitle from tracks: ${language}`);
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.log(`   ⚠️ Failed to parse tracks JSON: ${e.message}`);
+                }
+
+                // Method 2: Regex ile captions ara (fallback)
+                const captionRegex = /"captions","file":"([^"]*)","label":"([^"]*)"\}/g;
+                let captionMatch;
+
+                while ((captionMatch = captionRegex.exec(body)) !== null) {
+                    const subUrl = captionMatch[1].replace(/\\/g, '');
+                    const subLangRaw = captionMatch[2];
+
+                    // Dil temizleme
+                    const subLang = subLangRaw
+                        .replace(/\\u0131/g, 'ı')
+                        .replace(/\\u0130/g, 'İ')
+                        .replace(/\\u00fc/g, 'ü')
+                        .replace(/\\u00e7/g, 'ç')
+                        .replace(/\\u011f/g, 'ğ')
+                        .replace(/\\u015f/g, 'ş');
+
+                    const keywords = ['tur', 'tr', 'türkçe', 'turkce'];
+                    const language = keywords.some(k => subLang.toLowerCase().includes(k)) ? 'Turkish' : subLang;
+
+                    const finalUrl = subUrl.startsWith('http') ? subUrl : `https:${subUrl}`;
+                    if (!subUrls.has(finalUrl)) {
+                        subUrls.add(finalUrl);
+                        subtitles.push({
+                            id: language.toLowerCase().replace(/\s+/g, '_'),
+                            url: finalUrl,
+                            lang: language
+                        });
+                        console.log(`   📝 Subtitle from regex: ${language}`);
+                    }
+                }
+
+                console.log(`   📊 Total subtitles found: ${subtitles.length}`);
+
+                // Method 1: file: "..." with hex encoding
+                let decoded = null;
+                const fileHexMatch = body.match(/file:\s*"([^"]+)",/);
+                if (fileHexMatch && fileHexMatch[1].includes('\\x')) {
+                    const extractedValue = fileHexMatch[1];
+                    const hexParts = extractedValue.split('\\x').filter(x => x.length > 0);
+                    const bytes = hexParts.map(hex => parseInt(hex.substring(0, 2), 16));
+                    decoded = String.fromCharCode(...bytes);
+                    console.log(`   ✅ Hex decode successful`);
+                }
+
+                // Method 2: av() or _() function pattern
+                if (!decoded || !decoded.startsWith('http')) {
+                    // Try multiple patterns
+                    let avMatch = body.match(/file"?\s*:\s*(?:av|_)\('([^']+)'\)/);
+                    if (!avMatch) {
+                        avMatch = body.match(/"file"\s*:\s*(?:av|_)\('([^']+)'\)/);
+                    }
+
+                    if (avMatch) {
+                        const encrypted = avMatch[1];
+                        decoded = decodeRapidVidAv(encrypted);
+
+                        // Eğer sonuç Base64 gibi görünüyorsa, bir kez daha decode et
+                        if (decoded && !decoded.startsWith('http') && /^[A-Za-z0-9+/=]+$/.test(decoded)) {
+                            try {
+                                decoded = Buffer.from(decoded, 'base64').toString('utf-8');
+                            } catch (e) {
+                                console.log('   ⚠️ Double decode failed');
+                            }
+                        }
+
+                        if (decoded && decoded.startsWith('http')) {
+                            console.log(`   ✅ Stream URL decoded successfully`);
+                        }
+                    }
+                }
+
+                // Method 3: Direct m3u8 search (fallback)
+                if (!decoded || !decoded.startsWith('http')) {
+                    const m3uMatch = body.match(/(https?:\/\/[^\s"'<>()]+\.m3u8[^\s"'<>()]*)/);
+                    if (m3uMatch) {
+                        decoded = m3uMatch[1];
+                        console.log(`   ✅ Direct m3u8 found`);
+                    }
+                }
+
+                // Final check and stream creation
+                if (decoded && decoded.startsWith('http')) {
+                    const streamObj = {
+                        name: streamName,
+                        title: streamName,
+                        url: decoded,
+                        type: 'm3u8',
+                        behaviorHints: { notWebReady: false }
+                    };
+
+                    if (subtitles.length > 0) {
+                        streamObj.subtitles = subtitles;
+                    }
+
+                    streams.push(streamObj);
+                    console.log(`✅ RapidVid stream created (${subtitles.length} subtitle(s))`);
+                    return { streams };
+                } else {
+                    console.log('❌ RapidVid: No valid stream URL found');
+                }
+
+                return { streams };
+            }
+
+            // Genel M3U8 extraction (diğer servisler için)
             let m3uMatch = body.match(/file:\s*["']([^"']+\.m3u8[^"']*)["']/);
             if (!m3uMatch) m3uMatch = body.match(/"file"\s*:\s*"([^"]+\.m3u8[^"]*)"/);
             if (!m3uMatch) m3uMatch = body.match(/source:\s*["']([^"']+\.m3u8[^"']*)["']/);
@@ -412,6 +568,32 @@ async function processFetchResult(fetchResult) {
     }
 
     return { ok: true };
+}
+
+// ============ DECODER FUNCTIONS ============
+
+// RapidVid av() decoder
+function decodeRapidVidAv(input) {
+    try {
+        // 1. Reverse and Base64 decode
+        const reversed = input.split('').reverse().join('');
+        const firstPass = Buffer.from(reversed, 'base64');
+
+        // 2. Subtract key values
+        const key = 'K9L';
+        const adjusted = Buffer.alloc(firstPass.length);
+        for (let i = 0; i < firstPass.length; i++) {
+            const sub = firstPass[i] - ((key.charCodeAt(i % 3) % 5) + 1);
+            adjusted[i] = sub;
+        }
+
+        // 3. Second Base64 decode
+        const secondPass = Buffer.from(adjusted.toString('base64'), 'base64');
+        return secondPass.toString('utf-8');
+    } catch (e) {
+        console.log('❌ decodeRapidVidAv error:', e.message);
+        return '';
+    }
 }
 
 // Export functions
