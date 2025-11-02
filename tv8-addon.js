@@ -342,7 +342,7 @@ async function processFetchResult(fetchResult) {
             return {
                 instructions: [{
                     requestId: `tv8-episodes-1-${Date.now()}-${randomId}`,
-                    purpose: 'meta_episodes',
+                    purpose: 'meta',
                     url: `${BASE_URL}/Ajax/icerik/haberler/${dataId}/1?tip=videolar&id=${dataId}&sayfa=1&tip=videolar&hedef=%23tab-alt-${dataId}-icerik`,
                     method: 'GET',
                     headers: {
@@ -366,8 +366,8 @@ async function processFetchResult(fetchResult) {
         }
     }
 
-    // Meta Episodes - Bölümleri topla
-    if (purpose === 'meta_episodes') {
+    // Meta Episodes - Bölümleri topla (meta veya meta_episodes purpose'ı destekle)
+    if (purpose === 'meta' || purpose === 'meta_episodes') {
         try {
             const responseText = body.trim();
             const page = metadata?.page || 1;
@@ -457,7 +457,7 @@ async function processFetchResult(fetchResult) {
             return {
                 instructions: [{
                     requestId: `tv8-episodes-${nextPage}-${Date.now()}-${randomId}`,
-                    purpose: 'meta_episodes',
+                    purpose: 'meta',
                     url: `${BASE_URL}/Ajax/icerik/haberler/${dataId}/${nextPage}?tip=videolar&id=${dataId}&sayfa=${nextPage}&tip=videolar&hedef=%23tab-alt-${dataId}-icerik`,
                     method: 'GET',
                     headers: {
