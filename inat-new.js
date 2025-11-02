@@ -964,6 +964,7 @@ async function processFetchResult(fetchResult) {
                     type: 'tv',
                     name: item.chName || 'Unknown',
                     poster: item.chImg || null,
+                    posterShape: 'square',
                     description: '',
                     addonName: 'inatbox',
                     addonManifestUrl
@@ -1000,35 +1001,51 @@ async function processFetchResult(fetchResult) {
 
             // Her sezon için bölüm isteği oluştur
             const episodeInstructions = [];
+            let validSeasons = 0;
+            let invalidSeasons = 0;
+
             data.forEach((season, seasonIndex) => {
                 if (season.diziUrl) {
-                    const body = buildRequestBody();
-                    const urlObj = new URL(season.diziUrl);
-                    const requestId = `inat-season-${seasonIndex + 1}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+                    try {
+                        // URL validation
+                        const urlObj = new URL(season.diziUrl);
+                        const body = buildRequestBody();
+                        const requestId = `inat-season-${seasonIndex + 1}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-                    episodeInstructions.push({
-                        requestId,
-                        purpose: 'meta_series_episodes',
-                        url: season.diziUrl,
-                        method: 'POST',
-                        headers: {
-                            'Cache-Control': 'no-cache',
-                            'Content-Length': Buffer.byteLength(body, 'utf8').toString(),
-                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-                            'Host': urlObj.host,
-                            'Referer': 'https://speedrestapi.com/',
-                            'X-Requested-With': 'com.bp.box',
-                            'User-Agent': CONFIG.userAgent
-                        },
-                        body,
-                        metadata: {
-                            originalItem: item,
-                            seasonNumber: seasonIndex + 1,
-                            seasonName: season.diziName
-                        }
-                    });
+                        episodeInstructions.push({
+                            requestId,
+                            purpose: 'meta_series_episodes',
+                            url: season.diziUrl,
+                            method: 'POST',
+                            headers: {
+                                'Cache-Control': 'no-cache',
+                                'Content-Length': Buffer.byteLength(body, 'utf8').toString(),
+                                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                                'Host': urlObj.host,
+                                'Referer': 'https://speedrestapi.com/',
+                                'X-Requested-With': 'com.bp.box',
+                                'User-Agent': CONFIG.userAgent
+                            },
+                            body,
+                            metadata: {
+                                originalItem: item,
+                                seasonNumber: seasonIndex + 1,
+                                seasonName: season.diziName
+                            }
+                        });
+                        validSeasons++;
+                    } catch (urlError) {
+                        invalidSeasons++;
+                        safeLog(`⚠️ [Meta] Season ${seasonIndex + 1} (${season.diziName || 'Unknown'}) - Invalid URL: ${season.diziUrl}`);
+                        safeLog(`   Error: ${urlError.message}`);
+                    }
+                } else {
+                    invalidSeasons++;
+                    safeLog(`⚠️ [Meta] Season ${seasonIndex + 1} - Missing diziUrl`);
                 }
             });
+
+            safeLog(`📊 [Meta] Season validation: ${validSeasons} valid, ${invalidSeasons} invalid`);
 
             // İlk sezonun posterını kullan
             if (data[0] && data[0].diziImg) {
@@ -1036,6 +1053,13 @@ async function processFetchResult(fetchResult) {
             }
 
             safeLog(`📋 [Meta] Creating ${episodeInstructions.length} season fetch instructions`);
+
+            // Eğer hiç geçerli instruction oluşturulamadıysa, boş meta döndür
+            if (episodeInstructions.length === 0) {
+                safeLog(`⚠️ [Meta] No valid season URLs found, returning empty meta`);
+                return { meta };
+            }
+
             return {
                 instructions: episodeInstructions,
                 partialMeta: meta

@@ -252,7 +252,7 @@ async function processFetchResult(fetchResult) {
                 let slug = item.used_slug?.replace(/\\/g, '');
                 if (!slug) return;
 
-                const href = slug.startsWith('http') ? slug : `${BASE_URL}${slug}`;
+                const href = slug.startsWith('http') ? slug : `${BASE_URL}/${slug}`;
 
                 // Type belirleme
                 const typeStr = item.used_type || 'Movies';
@@ -396,51 +396,69 @@ async function processFetchResult(fetchResult) {
             const hasSeasons = $('section.episodes-box').length > 0;
 
             if (hasSeasons) {
-                // Dizi - bölümleri instruction olarak döndür
+                // Dizi tespit edildi - Kotlin gibi her sezon için ayrı instruction oluştur
+                console.log(`   📺 Dizi tespit edildi, sezonlar bulunuyor...`);
+
+                // Sezon linklerini topla (Kotlin: seasonVarList)
                 const seasonUrls = [];
                 $('section.episodes-box div.ui.vertical.fluid.tabular.menu a').each((i, elem) => {
                     const seasonHref = $(elem).attr('href');
                     if (seasonHref) {
                         const fullUrl = seasonHref.startsWith('http') ? seasonHref : `${BASE_URL}${seasonHref}`;
+                        // Kotlin'deki gibi /bolum-1 ekle
                         seasonUrls.push(fullUrl + '/bolum-1');
                     }
                 });
 
+                console.log(`   ${seasonUrls.length} sezon bulundu`);
+
                 if (seasonUrls.length > 0) {
-                    // Sezon sayfalarını çekmek için instruction döndür
+                    // Her sezon için instruction oluştur (Kotlin: app.get(seasonUrl).document)
                     const instructions = seasonUrls.map((seasonUrl, idx) => {
                         const randomId = Math.random().toString(36).substring(2, 10);
+
                         return {
                             requestId: `sinefy-season-${idx}-${Date.now()}-${randomId}`,
                             purpose: 'meta_season',
                             url: seasonUrl,
                             method: 'GET',
                             headers: {
-                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                                'Referer': url
                             },
                             metadata: {
-                                originalMeta: {
-                                    id: 'sinefy:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
-                                    type: 'series',
-                                    name: title,
-                                    poster: posterUrl,
-                                    background: posterUrl,
-                                    description: description || 'Açıklama mevcut değil',
-                                    releaseInfo: year ? year.toString() : null,
-                                    imdbRating: rating || null,
-                                    genres: tags.length > 0 ? tags : undefined,
-                                    runtime: duration,
-                                    cast: actors.length > 0 ? actors : undefined,
-                                    trailer: trailers[0] || null
-                                }
+                                seasonIndex: idx,
+                                totalSeasons: seasonUrls.length,
+                                // Sadece SON sezon için originalMeta ekle (memory optimization)
+                                ...(idx === seasonUrls.length - 1 ? {
+                                    originalMeta: {
+                                        id: 'sinefy:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
+                                        type: 'series',
+                                        name: title,
+                                        poster: posterUrl,
+                                        background: posterUrl,
+                                        description: description || 'Açıklama mevcut değil',
+                                        releaseInfo: year ? year.toString() : null,
+                                        imdbRating: rating || null,
+                                        genres: tags.length > 0 ? tags : undefined,
+                                        runtime: duration,
+                                        cast: actors.length > 0 ? actors : undefined,
+                                        trailer: trailers[0] || null
+                                    }
+                                } : {})
                             }
                         };
                     });
 
+                    console.log(`   ✅ ${instructions.length} sezon için instruction oluşturuldu`);
+
+                    // Instructions döndür - Flutter bunları sırayla işleyecek
                     return { instructions };
                 }
 
-                // Fallback - boş bölümlerle dizi döndür
+                // Fallback - sezon bulunamazsa boş bölümlerle dizi döndür
+                console.log(`   ⚠️ Hiç sezon bulunamadı, boş dizi döndürülüyor`);
                 return {
                     meta: {
                         id: 'sinefy:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
@@ -483,48 +501,89 @@ async function processFetchResult(fetchResult) {
         }
     }
 
-    // Meta Season (Sezon bölümlerini parse et)
+    // Meta Season (Sezon bölümlerini parse et - Kotlin Sinefy.kt'deki gibi)
     if (purpose === 'meta_season') {
         try {
             const $ = cheerio.load(body);
-            const videos = metadata?.videos || [];
 
-            // Sezon numarası
+            console.log(`\n📺 [Meta Season] Processing season page...`);
+            console.log(`   URL: ${url.substring(0, 80)}...`);
+
+            // Sezon numarası - Kotlin'deki gibi regex ile (line 269)
+            let seasonNumber = 1;
             const seasonText = $('span.light-title').text().trim();
             const seasonMatch = seasonText.match(/(\d+)\.\s*Sezon/);
-            const seasonNumber = seasonMatch ? parseInt(seasonMatch[1]) : 1;
 
-            // Bölümleri parse et
+            if (seasonMatch) {
+                seasonNumber = parseInt(seasonMatch[1]);
+                console.log(`   Sezon numarası: ${seasonNumber}`);
+            } else {
+                // Fallback: URL'den çıkar
+                const urlSeasonMatch = url.match(/\/sezon-(\d+)/);
+                if (urlSeasonMatch) {
+                    seasonNumber = parseInt(urlSeasonMatch[1]);
+                    console.log(`   Sezon numarası (URL'den): ${seasonNumber}`);
+                }
+            }
+
+            // Bölümleri parse et - Kotlin'deki gibi (line 271-284)
+            const currentVideos = [];
             $('div.swiper-slide.ss-episode').each((i, elem) => {
                 const episodeNum = $(elem).attr('data-episode');
                 const epHref = $(elem).find('a.episode-link').attr('href');
                 const epName = $(elem).find('h3').text().trim();
 
-                if (epHref && epName && episodeNum) {
+                if (epHref && episodeNum) {
                     const fullUrl = epHref.startsWith('http') ? epHref : `${BASE_URL}${epHref}`;
                     const videoId = 'sinefy:' + Buffer.from(fullUrl).toString('base64').replace(/=/g, '');
 
-                    videos.push({
+                    currentVideos.push({
                         id: videoId,
-                        title: epName,
+                        title: epName || `${seasonNumber}. Sezon ${episodeNum}. Bölüm`,
                         season: seasonNumber,
                         episode: parseInt(episodeNum)
                     });
                 }
             });
 
-            // Tüm sezonlar toplandıysa meta döndür
-            if (metadata?.originalMeta) {
-                const meta = metadata.originalMeta;
-                meta.videos = videos;
-                return { meta };
+            console.log(`   ✅ ${currentVideos.length} bölüm bulundu (Sezon ${seasonNumber})`);
+
+            // Flutter backend'deki getMetaDetailed ile uyumlu format
+            // Backend metadata.allVideos'u biriktirir
+            const seasonIndex = metadata?.seasonIndex;
+            const totalSeasons = metadata?.totalSeasons;
+
+            console.log(`   Progress: ${seasonIndex + 1}/${totalSeasons}`);
+
+            // Eğer bu SON sezon ise, tam meta döndür
+            if (seasonIndex !== undefined && totalSeasons !== undefined &&
+                seasonIndex >= totalSeasons - 1) {
+                console.log(`   🎉 SON SEZON işlendi!`);
+
+                // originalMeta mutlaka olmalı (son sezon için göndermiştik)
+                if (metadata?.originalMeta) {
+                    const meta = metadata.originalMeta;
+                    meta.videos = currentVideos; // Backend bunları birleştirecek
+                    return { meta };
+                } else {
+                    console.log(`   ⚠️ originalMeta bulunamadı!`);
+                    return { videos: currentVideos };
+                }
             }
 
-            // Devam ediyor, sadece videos döndür
-            return { videos };
+            // Henüz son sezon değil - partialMeta döndür
+            // Backend bunu allVideos array'ine ekleyecek
+            console.log(`   📦 Partial meta döndürülüyor (sezon ${seasonIndex + 1}/${totalSeasons})`);
+
+            return {
+                partialMeta: {
+                    videos: currentVideos
+                }
+            };
         } catch (error) {
             console.log('❌ Meta season parse error:', error.message);
-            return { videos: [] };
+            console.log('   Stack:', error.stack);
+            return { partialMeta: { videos: [] } };
         }
     }
 

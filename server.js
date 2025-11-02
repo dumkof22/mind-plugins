@@ -275,6 +275,9 @@ app.post('/api/fetch-result', async (req, res) => {
             });
         }
 
+        // Addon manifest URL'ini oluştur
+        const addonManifestUrl = `${req.protocol}://${req.get('host')}/api/addon/${addonId}/manifest.json`;
+
         // Process the fetched content (metadata dahil)
         console.log(`⚙️ [Fetch Result] Processing...`);
 
@@ -286,7 +289,8 @@ app.post('/api/fetch-result', async (req, res) => {
             status,
             headers,
             body,
-            metadata  // ✅ Metadata'yı pas geç
+            metadata,  // ✅ Metadata'yı pas geç
+            addonManifestUrl  // ✅ Manifest URL'i ekle
         });
 
         // Eğer addon handle edemediyse (ok: true dönüyorsa) ve extractor purpose'u ise
@@ -312,6 +316,8 @@ app.post('/api/fetch-result', async (req, res) => {
             console.log(`   📋 Found ${result.metas.length} meta(s)`);
         } else if (result.meta) {
             console.log(`   📺 Returned meta: ${result.meta.name}`);
+        } else if (result.partialMeta && result.instructions) {
+            console.log(`   📺 Partial meta with ${result.instructions.length} instruction(s)`);
         } else if (result.streams) {
             console.log(`   🎬 Found ${result.streams.length} stream(s)`);
         } else if (result.instructions) {
@@ -326,6 +332,7 @@ app.post('/api/fetch-result', async (req, res) => {
         });
     } catch (error) {
         console.error(`❌ [Fetch Result] Processing error:`, error.message);
+        console.error(`   Stack trace:`, error.stack);
         res.status(500).json({
             success: false,
             error: error.message

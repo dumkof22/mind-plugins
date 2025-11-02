@@ -209,6 +209,28 @@ function parseChannels($, catalogId, body) {
         const name = $el.find('div.name').text().trim();
         const time = $el.find('time').text().trim();
 
+        // Logo'yu bul - data-url içindeki #poster= parametresinden
+        let logo = null;
+        if (url && url.includes('#poster=')) {
+            try {
+                const posterMatch = url.match(/#poster=([^&]+)/);
+                if (posterMatch && posterMatch[1]) {
+                    logo = decodeURIComponent(posterMatch[1]);
+                }
+            } catch (e) {
+                console.log(`Logo decode hatası: ${e.message}`);
+            }
+        }
+
+        // Alternatif: img tag veya data attribute
+        if (!logo) {
+            logo = $el.find('img').attr('src') ||
+                $el.find('img').attr('data-src') ||
+                $el.attr('data-logo') ||
+                $el.attr('data-image') ||
+                null;
+        }
+
         if (!url || !name) return;
 
         // Katalog filtresine göre kontrol et
@@ -219,11 +241,26 @@ function parseChannels($, catalogId, body) {
 
         const id = 'selcukshd:channel:' + Buffer.from(url).toString('base64').replace(/=/g, '');
 
+        // Logo URL'ini tam hale getir
+        let posterUrl = `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(name)}`;
+        if (logo) {
+            if (logo.startsWith('http')) {
+                posterUrl = logo;
+            } else if (logo.startsWith('//')) {
+                posterUrl = 'https:' + logo;
+            } else if (logo.startsWith('/')) {
+                posterUrl = BASE_URL + logo;
+            } else if (!logo.startsWith('data:')) {
+                // data: URI değilse BASE_URL ekle
+                posterUrl = BASE_URL + '/' + logo;
+            }
+        }
+
         channels.push({
             id: id,
             type: 'tv',
             name: `📺 ${name}`,
-            poster: `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(name)}`,
+            poster: posterUrl,
             posterShape: 'square',
             description: `${name} - ${time || 'Canlı Yayın'}`
         });
@@ -243,15 +280,52 @@ function parseLiveMatches($, body) {
         const name = $el.find('div.name').text().trim();
         const time = $el.find('time').text().trim();
 
+        // Logo'yu bul - data-url içindeki #poster= parametresinden
+        let logo = null;
+        if (url && url.includes('#poster=')) {
+            try {
+                const posterMatch = url.match(/#poster=([^&]+)/);
+                if (posterMatch && posterMatch[1]) {
+                    logo = decodeURIComponent(posterMatch[1]);
+                }
+            } catch (e) {
+                console.log(`Logo decode hatası (live match): ${e.message}`);
+            }
+        }
+
+        // Alternatif: img tag veya data attribute
+        if (!logo) {
+            logo = $el.find('img').attr('src') ||
+                $el.find('img').attr('data-src') ||
+                $el.attr('data-logo') ||
+                $el.attr('data-image') ||
+                null;
+        }
+
         if (!url || !name) return;
 
         const id = 'selcukshd:match:' + Buffer.from(url).toString('base64').replace(/=/g, '');
+
+        // Logo URL'ini tam hale getir
+        let posterUrl = `https://via.placeholder.com/300x450/ff0000/ffffff?text=${encodeURIComponent('CANLI')}`;
+        if (logo) {
+            if (logo.startsWith('http')) {
+                posterUrl = logo;
+            } else if (logo.startsWith('//')) {
+                posterUrl = 'https:' + logo;
+            } else if (logo.startsWith('/')) {
+                posterUrl = BASE_URL + logo;
+            } else if (!logo.startsWith('data:')) {
+                // data: URI değilse BASE_URL ekle
+                posterUrl = BASE_URL + '/' + logo;
+            }
+        }
 
         matches.push({
             id: id,
             type: 'tv',
             name: `🔴 ${name}`,
-            poster: `https://via.placeholder.com/300x450/ff0000/ffffff?text=${encodeURIComponent('CANLI')}`,
+            poster: posterUrl,
             posterShape: 'square',
             description: `Canlı: ${name} - ${time}`
         });
@@ -304,14 +378,42 @@ async function processFetchResult(fetchResult) {
             $('h1').first().text().trim() ||
             'Canlı Yayın';
 
+        // Logo'yu HTML'den bul
+        let logo = $('meta[property="og:image"]').attr('content') ||
+            $('meta[name="twitter:image"]').attr('content') ||
+            $('img.channel-logo').attr('src') ||
+            $('img.logo').attr('src') ||
+            $('.channel-info img').first().attr('src') ||
+            null;
+
+        // Logo URL'ini tam hale getir
+        let posterUrl = `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(title)}`;
+        let backgroundUrl = `https://via.placeholder.com/1920x1080/1a1a1a/ffffff?text=${encodeURIComponent(title)}`;
+
+        if (logo) {
+            if (logo.startsWith('http')) {
+                posterUrl = logo;
+                backgroundUrl = logo;
+            } else if (logo.startsWith('//')) {
+                posterUrl = 'https:' + logo;
+                backgroundUrl = 'https:' + logo;
+            } else if (logo.startsWith('/')) {
+                posterUrl = BASE_URL + logo;
+                backgroundUrl = BASE_URL + logo;
+            } else if (!logo.startsWith('data:')) {
+                posterUrl = BASE_URL + '/' + logo;
+                backgroundUrl = BASE_URL + '/' + logo;
+            }
+        }
+
         return {
             meta: {
                 id: 'selcukshd:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
                 type: 'tv',
                 name: title,
-                poster: `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(title)}`,
+                poster: posterUrl,
                 posterShape: 'square',
-                background: `https://via.placeholder.com/1920x1080/1a1a1a/ffffff?text=${encodeURIComponent(title)}`,
+                background: backgroundUrl,
                 description: `${title} - Canlı Yayın`,
                 genres: ['Spor', 'Canlı TV']
             }

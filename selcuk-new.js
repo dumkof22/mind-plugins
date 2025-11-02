@@ -104,17 +104,28 @@ async function handleMeta(args) {
 
     const randomId = Math.random().toString(36).substring(2, 10);
     const requestId = `selcuk-meta-${Date.now()}-${randomId}`;
+
+    // URL'den stream ID'yi çıkar (meta için gerekli)
+    let streamId = '';
+    try {
+        const urlObj = new URL(url);
+        streamId = urlObj.searchParams.get('id') || '';
+    } catch (e) {
+        console.log(`   URL parse hatası: ${e.message}`);
+    }
+
     return {
         instructions: [{
             requestId,
             purpose: 'meta',
-            url: url,
+            url: BASE_URL, // Ana sayfadan channelsData'yı alacağız
             method: 'GET',
             headers: {
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'Referer': BASE_URL
-            }
+            },
+            metadata: { originalUrl: url, streamId: streamId }
         }]
     };
 }
@@ -200,6 +211,8 @@ function parseChannels($, catalogId, body) {
     channelsData.forEach(channel => {
         const streamId = channel.stream_url;
         const channelName = channel.name;
+        // logo_url field'ını kullan (logo değil!)
+        const channelLogo = channel.logo_url || channel.logo || channel.image || channel.icon || null;
 
         if (!streamId || !channelName) return;
 
@@ -214,11 +227,25 @@ function parseChannels($, catalogId, body) {
 
         const id = 'selcuk:channel:' + Buffer.from(fullUrl).toString('base64').replace(/=/g, '');
 
+        // Logo URL'ini tam hale getir
+        let posterUrl = null;
+        if (channelLogo) {
+            if (channelLogo.startsWith('http')) {
+                posterUrl = channelLogo;
+            } else if (channelLogo.startsWith('//')) {
+                posterUrl = 'https:' + channelLogo;
+            } else if (channelLogo.startsWith('/')) {
+                posterUrl = BASE_URL + channelLogo;
+            } else {
+                posterUrl = BASE_URL + '/' + channelLogo;
+            }
+        }
+
         channels.push({
             id: id,
             type: 'tv',
             name: `📺 ${channelName}`,
-            poster: `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(channelName)}`,
+            poster: posterUrl,
             posterShape: 'square',
             description: `${channelName} - Canlı Yayın`
         });
@@ -254,6 +281,8 @@ function parseLiveMatches($, body) {
     channelsData.forEach(channel => {
         const streamId = channel.stream_url;
         const matchName = channel.name;
+        // logo_url field'ını kullan (logo değil!)
+        const channelLogo = channel.logo_url || channel.logo || channel.image || channel.icon || null;
 
         if (!streamId || !matchName) return;
 
@@ -262,11 +291,25 @@ function parseLiveMatches($, body) {
 
         const id = 'selcuk:match:' + Buffer.from(fullUrl).toString('base64').replace(/=/g, '');
 
+        // Logo URL'ini tam hale getir
+        let posterUrl = null;
+        if (channelLogo) {
+            if (channelLogo.startsWith('http')) {
+                posterUrl = channelLogo;
+            } else if (channelLogo.startsWith('//')) {
+                posterUrl = 'https:' + channelLogo;
+            } else if (channelLogo.startsWith('/')) {
+                posterUrl = BASE_URL + channelLogo;
+            } else {
+                posterUrl = BASE_URL + '/' + channelLogo;
+            }
+        }
+
         matches.push({
             id: id,
             type: 'tv',
             name: `🔴 ${matchName}`,
-            poster: `https://via.placeholder.com/300x450/ff0000/ffffff?text=${encodeURIComponent('CANLI')}`,
+            poster: posterUrl,
             posterShape: 'square',
             description: `Canlı: ${matchName}`
         });
@@ -301,19 +344,69 @@ async function processFetchResult(fetchResult) {
     }
 
     if (purpose === 'meta') {
-        const title = $('title').text().trim() ||
-            $('h1').first().text().trim() ||
-            'Canlı Yayın';
+        // Metadata'dan stream ID'yi al
+        const streamId = metadata?.streamId || '';
+        const originalUrl = metadata?.originalUrl || url;
+        let channelName = 'Canlı Yayın';
+        let channelLogo = null;
+
+        console.log(`   Stream ID: ${streamId}`);
+
+        // channelsData'dan kanal bilgisini bul
+        const scriptMatch = body.match(/const\s+channelsData\s*=\s*(\[[\s\S]*?\])\s*;/);
+
+        if (scriptMatch) {
+            try {
+                const jsonStr = scriptMatch[1].trim();
+                const channelsData = JSON.parse(jsonStr);
+
+                // Stream ID'ye göre kanalı bul
+                const channel = channelsData.find(ch => ch.stream_url === streamId);
+                if (channel) {
+                    channelName = channel.name || channelName;
+                    // logo_url field'ını kullan (logo değil!)
+                    channelLogo = channel.logo_url || channel.logo || channel.image || channel.icon || null;
+                    console.log(`   ✓ Kanal bulundu: ${channelName}`);
+                    if (channelLogo) console.log(`   ✓ Logo: ${channelLogo}`);
+                } else {
+                    console.log(`   ⚠️ Kanal bulunamadı (streamId: ${streamId})`);
+                }
+            } catch (e) {
+                console.log(`   ⚠️ channelsData parse hatası: ${e.message}`);
+            }
+        } else {
+            console.log(`   ⚠️ channelsData bulunamadı`);
+        }
+
+        // Logo URL'ini tam hale getir
+        let posterUrl = null;
+        let backgroundUrl = null;
+
+        if (channelLogo) {
+            if (channelLogo.startsWith('http')) {
+                posterUrl = channelLogo;
+                backgroundUrl = channelLogo;
+            } else if (channelLogo.startsWith('//')) {
+                posterUrl = 'https:' + channelLogo;
+                backgroundUrl = 'https:' + channelLogo;
+            } else if (channelLogo.startsWith('/')) {
+                posterUrl = BASE_URL + channelLogo;
+                backgroundUrl = BASE_URL + channelLogo;
+            } else {
+                posterUrl = BASE_URL + '/' + channelLogo;
+                backgroundUrl = BASE_URL + '/' + channelLogo;
+            }
+        }
 
         return {
             meta: {
-                id: 'selcuk:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
+                id: 'selcuk:' + Buffer.from(originalUrl).toString('base64').replace(/=/g, ''),
                 type: 'tv',
-                name: title,
-                poster: `https://via.placeholder.com/300x450/1a1a1a/ffffff?text=${encodeURIComponent(title)}`,
+                name: channelName,
+                poster: posterUrl,
                 posterShape: 'square',
-                background: `https://via.placeholder.com/1920x1080/1a1a1a/ffffff?text=${encodeURIComponent(title)}`,
-                description: `${title} - Canlı Yayın`,
+                background: backgroundUrl,
+                description: `${channelName} - Canlı Yayın`,
                 genres: ['Spor', 'Canlı TV']
             }
         };
@@ -368,21 +461,10 @@ async function processFetchResult(fetchResult) {
         if (m3u8Link) {
             const m3u8Origin = new URL(m3u8Link).origin;
             const playerReferer = new URL(fullPlayerUrl).origin + '/';
-
-            // Video parçaları için header'lar
             const streamHeaders = {
-                'Accept': '*/*',
-                'Accept-Encoding': 'gzip, deflate, br, zstd',
-                'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-                'Origin': playerReferer.replace(/\/$/, ''),
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36',
                 'Referer': playerReferer,
-                'Sec-Ch-Ua': '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
-                'Sec-Ch-Ua-Mobile': '?0',
-                'Sec-Ch-Ua-Platform': '"Windows"',
-                'Sec-Fetch-Dest': 'empty',
-                'Sec-Fetch-Mode': 'cors',
-                'Sec-Fetch-Site': 'cross-site',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36'
+                'Origin': m3u8Origin
             };
 
             streams.push({
