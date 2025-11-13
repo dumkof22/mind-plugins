@@ -6,6 +6,7 @@ const manifest = {
     version: '1.0.0',
     name: '4KFilmİzlesene',
     description: 'Türkçe ve yabancı filmler 4K kalitede - 4KFilmİzlesene platformu',
+    logo: 'https://www.4kfilmizleme.net/wp-content/uploads/2022/09/4kfilmizlemefavicon-1.png',
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie'],
     catalogs: [

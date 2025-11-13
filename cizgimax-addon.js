@@ -7,6 +7,7 @@ const manifest = {
     version: '1.0.0',
     name: 'CizgiMax',
     description: 'Türkçe çizgi film izleme platformu - CizgiMax.online için Stremio eklentisi',
+    logo: 'https://www.google.com/s2/favicons?domain=cizgimax.online&sz=%size%',
     resources: ['catalog', 'meta', 'stream'],
     types: ['series'],
     catalogs: [
@@ -385,7 +386,7 @@ async function processFetchResult(fetchResult) {
                 const key = Buffer.from(bePlayerPass, 'utf-8');
                 const decipher = crypto.createDecipheriv('aes-128-cbc', key.slice(0, 16), Buffer.alloc(16, 0));
                 decipher.setAutoPadding(true);
-                
+
                 let decrypted = decipher.update(bePlayerData, 'base64', 'utf8');
                 decrypted += decipher.final('utf8');
                 decrypted = decrypted.replace(/\\/g, '');

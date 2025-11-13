@@ -6,6 +6,7 @@ const manifest = {
     version: '1.0.0',
     name: 'Dizist',
     description: 'Türkçe dizi izleme platformu - Yabancı diziler, animeler ve Asya dizileri',
+    logo: 'https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://dizist.club/&size=128',
     resources: ['catalog', 'meta', 'stream'],
     types: ['series'],
     catalogs: [

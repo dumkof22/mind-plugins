@@ -299,15 +299,82 @@ async function processFetchResult(fetchResult) {
         }
     }
 
-    // Meta Episodes - Ajax JSON response (metadata içinde page varsa)
-    if (purpose === 'meta' && metadata?.page) {
+    // Meta
+    if (purpose === 'meta') {
+        try {
+            const $ = cheerio.load(body);
+
+            console.log(`🔍 [Tv8 Meta Parse] Starting...`);
+            console.log(`   URL: ${url?.substring(0, 80)}`);
+
+            const title = $('h1').text().trim();
+            if (!title) {
+                console.log('❌ No title found');
+                return { meta: null };
+            }
+
+            console.log(`   Title: ${title}`);
+
+            const poster = $('div.item img[src]').attr('src');
+            console.log(`   Poster: ${poster?.substring(0, 60)}`);
+
+            // data-id'yi al
+            const dataId = $('li.tabs a.tab[data-id]').attr('data-id');
+            if (!dataId) {
+                console.log('❌ No data-id found');
+                return { meta: null };
+            }
+
+            console.log(`📺 Program data-id: ${dataId}`);
+
+            // İlk sayfayı fetch etmek için tek instruction döndür
+            const randomId = Math.random().toString(36).substring(2, 10);
+            const originalMeta = {
+                id: 'tv8:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
+                type: 'series',
+                name: title,
+                poster: poster || null,
+                background: poster || null,
+                description: `Tv8 ${title} programı`
+            };
+
+            console.log(`✅ [Tv8 Meta] Creating first page instruction`);
+            return {
+                instructions: [{
+                    requestId: `tv8-episodes-1-${Date.now()}-${randomId}`,
+                    purpose: 'meta_episodes',
+                    url: `${BASE_URL}/Ajax/icerik/haberler/${dataId}/1?tip=videolar&id=${dataId}&sayfa=1&tip=videolar&hedef=%23tab-alt-${dataId}-icerik`,
+                    method: 'GET',
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': 'application/json, text/javascript, */*; q=0.01',
+                        'Referer': BASE_URL
+                    },
+                    metadata: {
+                        page: 1,
+                        maxPages: 5,
+                        accumulatedVideos: [],
+                        originalMeta: originalMeta,
+                        dataId: dataId
+                    }
+                }]
+            };
+        } catch (error) {
+            console.log('❌ Meta parse error:', error.message);
+            return { meta: null };
+        }
+    }
+
+    // Meta Episodes - Bölümleri topla
+    if (purpose === 'meta_episodes') {
         try {
             const responseText = body.trim();
-            const page = metadata.page;
-            const maxPages = metadata.maxPages || 5;
-            const dataId = metadata.dataId;
-            const accumulatedVideos = metadata.accumulatedVideos || [];
-            const originalMeta = metadata.originalMeta;
+            const page = metadata?.page || 1;
+            const maxPages = metadata?.maxPages || 5;
+            const dataId = metadata?.dataId;
+            const accumulatedVideos = metadata?.accumulatedVideos || [];
+            const originalMeta = metadata?.originalMeta;
 
             console.log(`📄 Page ${page}: Processing...`);
 
@@ -390,7 +457,7 @@ async function processFetchResult(fetchResult) {
             return {
                 instructions: [{
                     requestId: `tv8-episodes-${nextPage}-${Date.now()}-${randomId}`,
-                    purpose: 'meta',
+                    purpose: 'meta_episodes',
                     url: `${BASE_URL}/Ajax/icerik/haberler/${dataId}/${nextPage}?tip=videolar&id=${dataId}&sayfa=${nextPage}&tip=videolar&hedef=%23tab-alt-${dataId}-icerik`,
                     method: 'GET',
                     headers: {
@@ -424,73 +491,6 @@ async function processFetchResult(fetchResult) {
         }
     }
 
-    // Meta - HTML response (ilk istek)
-    if (purpose === 'meta') {
-        try {
-            const $ = cheerio.load(body);
-
-            console.log(`🔍 [Tv8 Meta Parse] Starting...`);
-            console.log(`   URL: ${url?.substring(0, 80)}`);
-
-            const title = $('h1').text().trim();
-            if (!title) {
-                console.log('❌ No title found');
-                return { meta: null };
-            }
-
-            console.log(`   Title: ${title}`);
-
-            const poster = $('div.item img[src]').attr('src');
-            console.log(`   Poster: ${poster?.substring(0, 60)}`);
-
-            // data-id'yi al
-            const dataId = $('li.tabs a.tab[data-id]').attr('data-id');
-            if (!dataId) {
-                console.log('❌ No data-id found');
-                return { meta: null };
-            }
-
-            console.log(`📺 Program data-id: ${dataId}`);
-
-            // İlk sayfayı fetch etmek için tek instruction döndür
-            const randomId = Math.random().toString(36).substring(2, 10);
-            const originalMeta = {
-                id: 'tv8:' + Buffer.from(url).toString('base64').replace(/=/g, ''),
-                type: 'series',
-                name: title,
-                poster: poster || null,
-                background: poster || null,
-                description: `Tv8 ${title} programı`
-            };
-
-            console.log(`✅ [Tv8 Meta] Creating first page instruction`);
-            return {
-                instructions: [{
-                    requestId: `tv8-episodes-1-${Date.now()}-${randomId}`,
-                    purpose: 'meta',
-                    url: `${BASE_URL}/Ajax/icerik/haberler/${dataId}/1?tip=videolar&id=${dataId}&sayfa=1&tip=videolar&hedef=%23tab-alt-${dataId}-icerik`,
-                    method: 'GET',
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json, text/javascript, */*; q=0.01',
-                        'Referer': BASE_URL
-                    },
-                    metadata: {
-                        page: 1,
-                        maxPages: 5,
-                        accumulatedVideos: [],
-                        originalMeta: originalMeta,
-                        dataId: dataId
-                    }
-                }]
-            };
-        } catch (error) {
-            console.log('❌ Meta parse error:', error.message);
-            return { meta: null };
-        }
-    }
-
     console.log(`⚠️ [Tv8] Unhandled purpose: ${purpose}`);
     return { ok: true };
 }
@@ -504,3 +504,4 @@ module.exports = {
     handleStream,
     processFetchResult
 };
+

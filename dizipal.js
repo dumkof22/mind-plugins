@@ -38,6 +38,7 @@ const manifest = {
     version: '2.0.0',
     name: 'DiziPal',
     description: 'Türkçe dizi ve film izleme platformu - DiziPal için Stremio eklentisi (Instruction Mode)',
+    logo: 'https://t3.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=https://dizipal953.com&size=128',
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie', 'series'],
     catalogs: [
@@ -140,7 +141,7 @@ const manifest = {
     idPrefixes: ['dizipal']
 };
 
-const BASE_URL = 'https://dizipal1215.com';
+const BASE_URL = 'https://dizipal1217.com';
 
 // ============ BOT DETECTION PREVENTION ============
 // Delay helper function

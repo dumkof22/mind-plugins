@@ -7,6 +7,7 @@ const manifest = {
     version: '2.0.0',
     name: 'DiziBox',
     description: 'Türkçe dizi izleme platformu - DiziBox için Stremio eklentisi (Instruction Mode)',
+    logo: 'https://www.google.com/s2/favicons?domain=www.dizibox.de&sz=%size%',
     resources: ['catalog', 'meta', 'stream'],
     types: ['series'],
     catalogs: [

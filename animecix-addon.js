@@ -6,6 +6,7 @@ const manifest = {
     version: '1.0.0',
     name: 'AnimeciX',
     description: 'Türkçe anime izleme platformu - AnimeciX.tv için Stremio eklentisi',
+    logo: 'https://www.google.com/s2/favicons?domain=animecix.net&sz=%size%',
     resources: ['catalog', 'meta', 'stream'],
     types: ['series', 'movie'],
     catalogs: [

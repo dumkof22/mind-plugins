@@ -119,6 +119,7 @@ const manifest = {
     version: '1.0.0',
     name: 'HDFilmCehennemi',
     description: 'Türkçe film ve dizi izleme platformu - HDFilmCehennemi için Stremio eklentisi',
+    logo: 'https://www.google.com/s2/favicons?domain=hdfilmcehennemi.com&sz=%size%',
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie', 'series'],
     catalogs: [
