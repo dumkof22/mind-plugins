@@ -13,6 +13,7 @@ const manifest = {
     version: '1.0.0',
     name: 'CizgiveDizi',
     description: 'Türkçe çizgi film ve dizi platformu - CizgiveDizi için Stremio eklentisi (Instruction Mode)',
+    logo: 'https://cizgivedizi.com/Logo.png',
     resources: ['catalog', 'meta', 'stream'],
     types: ['series', 'movie'],
     catalogs: [
