@@ -128,7 +128,35 @@ function vkSourceFix(url) {
     }
     return url;
 }
+// 🆕 TİP BELİRLEME FONKSİYONU EKLE
+function determineContentType(item, catalogId) {
+    // 1. Öncelik: diziType kontrolü
+    if (item.diziType === 'dizi') {
+        return 'series';
+    }
+    if (item.diziType === 'film') {
+        return 'movie';
+    }
 
+    // 2. Katalog ID'ye göre tip
+    if (catalogId === 'yabanci-dizi' || catalogId === 'yerli-dizi') {
+        return 'series';
+    }
+    if (catalogId === 'yerli-film' || catalogId === '4k-film' ||
+        ['exxen', 'gain', 'disney', 'amazon', 'hbo', 'tabii', 'mubi', 'tod'].includes(catalogId)) {
+        return 'movie';
+    }
+
+    // 3. chType kontrolü
+    if (item.chType) {
+        if (item.chType === 'live_url' || item.chType === 'tekli_regex_lb_sh_3') {
+            return 'tv';
+        }
+        return 'movie';
+    }
+
+    return 'movie';
+}
 // --- HANDLERS ---
 
 async function handleCatalog(args) {
@@ -169,7 +197,8 @@ async function handleCatalog(args) {
                     'X-Requested-With': 'com.bp.box',
                     'User-Agent': CONFIG.userAgent
                 },
-                body
+                body,
+                metadata: { catalogId } // 🆕 BU SATIRI EKLE
             }]
         };
     }
@@ -205,7 +234,8 @@ async function handleCatalog(args) {
                 'X-Requested-With': 'com.bp.box',
                 'User-Agent': CONFIG.userAgent
             },
-            body: requestBody
+            body: requestBody,
+            metadata: { catalogId } // 🆕 BU SATIRI EKLE
         }]
     };
 
@@ -552,44 +582,22 @@ async function processFetchResult(fetchResult) {
         let skippedCount = 0;
         let processedCount = 0;
 
+        const catalogId = metadata?.catalogId || '';
+
         items.forEach((item, index) => {
             try {
-                // Kotlin kodundaki gibi link ve web tiplerini filtrele
                 if (!isContentAllowed(item)) {
-                    if (index < 3) { // İlk 3 atlanan için log
-                        safeLog(`⏭️ Skipping item ${index}: type=${item.diziType || item.chType}`);
-                    }
                     skippedCount++;
                     return;
                 }
 
-                // Temel bilgileri çıkar
                 const name = item.diziName || item.chName || item.name || item.title || 'Unknown';
                 const poster = item.diziImg || item.chImg || item.img || item.poster || null;
-
-                // ID oluştur (tüm item'ı base64'e çevir)
                 const id = `inatbox:${Buffer.from(JSON.stringify(item)).toString('base64')}`;
 
-                // Tip belirle (Kotlin'deki gibi)
-                let type = 'movie'; // varsayılan
-                if (item.diziType === 'dizi') {
-                    type = 'series';
-                } else if (item.diziType === 'film') {
-                    type = 'movie';
-                } else if (item.chType) {
-                    // live_url ve spor kanalları kesinlikle TV
-                    // tekli_regex tipleri genelde movie/episode (film veya dizi bölümü)
-                    // Kotlin: parseLiveStreamLoadResponse sadece live_url için, diğerleri parseMovieResponse
-                    if (item.chType === 'live_url' || item.chType === 'tekli_regex_lb_sh_3') {
-                        type = 'tv';
-                    } else {
-                        // tekli_regex, tekli_regex_no_sh, cable_sh -> movie olarak işle
-                        // (episode ise zaten meta'da series altında gösterilecek)
-                        type = 'movie';
-                    }
-                }
+                // 🆕 YENİ TİP BELİRLEME - eskisini sil, bunu ekle
+                const type = determineContentType(item, catalogId);
 
-                // Poster shape belirle (TV kanalları için square, diğerleri poster)
                 const posterShape = type === 'tv' ? 'square' : 'poster';
 
                 // Meta objesi oluştur
@@ -684,7 +692,7 @@ async function processFetchResult(fetchResult) {
                 };
             }
 
-            streams.push({
+            const stream = {
                 url: sourceUrl,
                 name: item.chName || 'Direct Stream',
                 title: item.chName || 'Direct Stream',
@@ -694,7 +702,81 @@ async function processFetchResult(fetchResult) {
                 },
                 addonName: 'inatbox',
                 addonManifestUrl
-            });
+            };
+
+            // 🆕 ALTYAZI DESTEĞİ EKLE (chReg'den)
+            const subtitles = [];
+            try {
+                const chReg = item.chReg;
+                if (chReg && chReg !== 'null') {
+                    let parsedReg = chReg;
+                    if (typeof chReg === 'string') {
+                        parsedReg = JSON.parse(chReg);
+                    }
+
+                    if (Array.isArray(parsedReg)) {
+                        for (const regItem of parsedReg) {
+                            // Method 1: DiziPal tarzı [Lang]URL formatı
+                            if (regItem.Subtitle) {
+                                const subtitleData = regItem.Subtitle;
+                                if (subtitleData.includes(',')) {
+                                    // Birden fazla altyazı: "[Türkçe]url1,[İngilizce]url2"
+                                    const parts = subtitleData.split(',');
+                                    for (const part of parts) {
+                                        const langMatch = part.match(/\[([^\]]+)\]/);
+                                        if (langMatch) {
+                                            const lang = langMatch[1];
+                                            const subUrl = part.replace(`[${lang}]`, '').trim();
+                                            if (subUrl) {
+                                                subtitles.push({
+                                                    id: lang.toLowerCase().replace(/\s+/g, '_'),
+                                                    url: subUrl,
+                                                    lang: lang
+                                                });
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // Tek altyazı
+                                    const langMatch = subtitleData.match(/\[([^\]]+)\]/);
+                                    if (langMatch) {
+                                        const lang = langMatch[1];
+                                        const subUrl = subtitleData.replace(`[${lang}]`, '').trim();
+                                        if (subUrl) {
+                                            subtitles.push({
+                                                id: lang.toLowerCase().replace(/\s+/g, '_'),
+                                                url: subUrl,
+                                                lang: lang
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Method 2: Direkt SubtitleUrl ve SubtitleLang alanları
+                            if (regItem.SubtitleUrl) {
+                                const subUrl = regItem.SubtitleUrl;
+                                const lang = regItem.SubtitleLang || regItem.SubtitleName || 'Türkçe';
+                                const id = lang.toLowerCase().replace(/\s+/g, '_');
+
+                                // Duplicate check
+                                if (!subtitles.find(s => s.id === id)) {
+                                    subtitles.push({ id, url: subUrl, lang });
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                safeLog('⚠️ Error parsing subtitles:', e.message);
+            }
+
+            if (subtitles.length > 0) {
+                stream.subtitles = subtitles;
+                safeLog(`   ✅ ${subtitles.length} altyazı eklendi`);
+            }
+
+            streams.push(stream);
 
             safeLog(`✅ [Extractor] Generated 1 direct stream (headers: ${Object.keys(headersObject).join(', ')})`);
             return { streams };
@@ -874,7 +956,7 @@ async function processFetchResult(fetchResult) {
                 }];
             }
 
-            streams.push({
+            const genericStream = {
                 url: finalUrl,
                 name: item.chName || 'Generic Stream',
                 title: item.chName || 'Generic Stream',
@@ -884,8 +966,69 @@ async function processFetchResult(fetchResult) {
                 },
                 addonName: 'inatbox',
                 addonManifestUrl
-            });
+            };
 
+            // 🆕 ALTYAZI DESTEĞİ (generic stream için de)
+            const subtitles = [];
+            try {
+                const chReg = item.chReg;
+                if (chReg && chReg !== 'null' && Array.isArray(chReg)) {
+                    for (const regItem of chReg) {
+                        // Subtitle parsing (yukarıdaki ile aynı)
+                        if (regItem.Subtitle) {
+                            const subtitleData = regItem.Subtitle;
+                            if (subtitleData.includes(',')) {
+                                const parts = subtitleData.split(',');
+                                for (const part of parts) {
+                                    const langMatch = part.match(/\[([^\]]+)\]/);
+                                    if (langMatch) {
+                                        const lang = langMatch[1];
+                                        const subUrl = part.replace(`[${lang}]`, '').trim();
+                                        if (subUrl) {
+                                            subtitles.push({
+                                                id: lang.toLowerCase().replace(/\s+/g, '_'),
+                                                url: subUrl,
+                                                lang: lang
+                                            });
+                                        }
+                                    }
+                                }
+                            } else {
+                                const langMatch = subtitleData.match(/\[([^\]]+)\]/);
+                                if (langMatch) {
+                                    const lang = langMatch[1];
+                                    const subUrl = subtitleData.replace(`[${lang}]`, '').trim();
+                                    if (subUrl) {
+                                        subtitles.push({
+                                            id: lang.toLowerCase().replace(/\s+/g, '_'),
+                                            url: subUrl,
+                                            lang: lang
+                                        });
+                                    }
+                                }
+                            }
+                        }
+
+                        if (regItem.SubtitleUrl) {
+                            const subUrl = regItem.SubtitleUrl;
+                            const lang = regItem.SubtitleLang || regItem.SubtitleName || 'Türkçe';
+                            const id = lang.toLowerCase().replace(/\s+/g, '_');
+                            if (!subtitles.find(s => s.id === id)) {
+                                subtitles.push({ id, url: subUrl, lang });
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                safeLog('⚠️ Error parsing subtitles:', e.message);
+            }
+
+            if (subtitles.length > 0) {
+                genericStream.subtitles = subtitles;
+                safeLog(`   ✅ ${subtitles.length} altyazı eklendi (generic)`);
+            }
+
+            streams.push(genericStream);
             safeLog(`✅ [Extractor] Generated 1 generic fallback stream`);
         } else {
             safeLog(`✅ [Extractor] Generated ${streams.length} stream(s)`);
@@ -1086,10 +1229,19 @@ async function processFetchResult(fetchResult) {
             });
 
             safeLog(`✅ [Meta] Season ${seasonNumber}: ${videos.length} episodes`);
-            // Backend expects 'meta' object with 'videos' inside for nested instructions
+
+            // 🆕 TAM META OBJESİ DÖNDÜR (sadece videos değil)
             return {
                 meta: {
-                    videos: videos
+                    id: item.id || `inatbox:${Buffer.from(JSON.stringify(item)).toString('base64')}`,
+                    type: 'series',
+                    name: item.diziName || item.chName || 'Unknown',
+                    poster: item.diziImg || item.chImg || null,
+                    description: item.diziDetay || '',
+                    releaseInfo: item.diziYear || '',
+                    videos: videos, // 🔥 Videos burada
+                    addonName: 'inatbox',
+                    addonManifestUrl
                 }
             };
         }
