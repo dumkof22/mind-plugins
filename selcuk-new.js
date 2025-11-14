@@ -6,6 +6,7 @@ const manifest = {
     version: '2.0.0',
     name: 'SelcukSports HD',
     description: 'Canlı spor kanalları - SelcukSports için Stremio eklentisi (Instruction Mode)',
+    logo: 'https://play-lh.googleusercontent.com/iWAT8chbA_tavljXfjTqxzc9pAnAiSK72Ikt5uouEQ7CO-af4R8Omvn8f_ypHk1ZFw0=w240-h480-rw',
     resources: ['catalog', 'meta', 'stream'],
     types: ['tv', 'channel'],
     catalogs: [
