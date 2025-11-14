@@ -6,6 +6,7 @@ const manifest = {
     version: '1.0.0',
     name: 'SporCafe',
     description: 'Canlı spor kanalları - SelcukSportsHD için Stremio eklentisi (Instruction Mode)',
+    logo: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRUPMbiKPHBQdUZiUrf6of2YQb7DKW5VPZnEg&s',
     resources: ['catalog', 'meta', 'stream'],
     types: ['tv', 'channel'],
     catalogs: [
@@ -523,6 +524,7 @@ module.exports = {
     getDynamicBaseUrls,
     setDynamicBaseUrl
 };
+
 
 
 
