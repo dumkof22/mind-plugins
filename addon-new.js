@@ -7,7 +7,7 @@ const manifest = {
     version: '3.0.0',
     name: 'FullHDFilmizlesene',
     description: 'Türkçe film izleme platformu - FullHDFilmizlesene.tv için Stremio eklentisi (Instruction Mode)',
-    logo: 'https://www.google.com/s2/favicons?domain=www.fullhdfilmizlesene.de&sz=%size%',
+    logo: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT2zcI6Al1043obi3Oxvn8qt5a14GfG3gfspQ&s',
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie'],
     catalogs: [
