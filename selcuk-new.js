@@ -4,9 +4,8 @@ const cheerio = require('cheerio');
 const manifest = {
     id: 'community.selcuksports',
     version: '2.0.0',
-    name: 'SporCAFE',
+    name: 'SelcukSports HD',
     description: 'Canlı spor kanalları - SelcukSports için Stremio eklentisi (Instruction Mode)',
-    logo: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRUPMbiKPHBQdUZiUrf6of2YQb7DKW5VPZnEg&s',
     resources: ['catalog', 'meta', 'stream'],
     types: ['tv', 'channel'],
     catalogs: [

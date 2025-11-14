@@ -130,7 +130,7 @@ function vkSourceFix(url) {
 }
 // 🆕 TİP BELİRLEME FONKSİYONU EKLE
 function determineContentType(item, catalogId) {
-    // 1. Öncelik: diziType kontrolü
+    // 1. ÖNCE diziType kontrolü (en güvenilir kaynak)
     if (item.diziType === 'dizi') {
         return 'series';
     }
@@ -138,16 +138,14 @@ function determineContentType(item, catalogId) {
         return 'movie';
     }
 
-    // 2. Katalog ID'ye göre tip
+    // 2. Katalog ID'ye göre default tip
+    // NOT: Amazon, Disney, EXXEN vs. hem dizi hem film içerebilir
+    // Bu yüzden diziType yoksa varsayılan olarak movie kullan
     if (catalogId === 'yabanci-dizi' || catalogId === 'yerli-dizi') {
         return 'series';
     }
-    if (catalogId === 'yerli-film' || catalogId === '4k-film' ||
-        ['exxen', 'gain', 'disney', 'amazon', 'hbo', 'tabii', 'mubi', 'tod'].includes(catalogId)) {
-        return 'movie';
-    }
 
-    // 3. chType kontrolü
+    // 3. chType kontrolü (kanallar için)
     if (item.chType) {
         if (item.chType === 'live_url' || item.chType === 'tekli_regex_lb_sh_3') {
             return 'tv';
@@ -155,6 +153,7 @@ function determineContentType(item, catalogId) {
         return 'movie';
     }
 
+    // 4. Default: movie (ama diziType varsa yukarıda yakalanmalı)
     return 'movie';
 }
 // --- HANDLERS ---
@@ -1117,14 +1116,27 @@ async function processFetchResult(fetchResult) {
 
         const id = `inatbox:${Buffer.from(JSON.stringify(item)).toString('base64')}`;
 
-        // Tip belirle
+        // Tip belirle - backend'den gelen veya item'daki tip
         let type = 'movie';
+
+        // 1. diziType kontrolü (en güvenilir)
         if (item.diziType === 'dizi') {
             type = 'series';
         } else if (item.diziType === 'film') {
             type = 'movie';
-        } else if (item.chType) {
-            type = 'tv';
+        }
+        // 2. chType kontrolü (kanallar için)
+        else if (item.chType) {
+            if (item.chType === 'live_url' || item.chType === 'tekli_regex_lb_sh_3') {
+                type = 'tv';
+            } else {
+                type = 'movie';
+            }
+        }
+
+        // 3. Purpose'a göre override (meta_series_* ise kesinlikle series)
+        if (purpose === 'meta_series_seasons' || purpose === 'meta_series_episodes') {
+            type = 'series';
         }
 
         const meta = {
@@ -1142,7 +1154,7 @@ async function processFetchResult(fetchResult) {
         if (purpose === 'meta_series_seasons' && type === 'series' && Array.isArray(data)) {
             safeLog(`📺 [Meta] Series detected, fetching episodes for ${data.length} seasons`);
 
-            // Her sezon için bölüm isteği oluştur
+            // Her sezon için bölüm isteği oluştur - TÜM SEZONLAR İÇİN
             const episodeInstructions = [];
             let validSeasons = 0;
             let invalidSeasons = 0;
@@ -1177,14 +1189,15 @@ async function processFetchResult(fetchResult) {
                             }
                         });
                         validSeasons++;
+                        safeLog(`   ✅ Season ${seasonIndex + 1}: ${season.diziName}`);
                     } catch (urlError) {
                         invalidSeasons++;
-                        safeLog(`⚠️ [Meta] Season ${seasonIndex + 1} (${season.diziName || 'Unknown'}) - Invalid URL: ${season.diziUrl}`);
-                        safeLog(`   Error: ${urlError.message}`);
+                        safeLog(`   ⚠️ [Meta] Season ${seasonIndex + 1} (${season.diziName || 'Unknown'}) - Invalid URL: ${season.diziUrl}`);
+                        safeLog(`      Error: ${urlError.message}`);
                     }
                 } else {
                     invalidSeasons++;
-                    safeLog(`⚠️ [Meta] Season ${seasonIndex + 1} - Missing diziUrl`);
+                    safeLog(`   ⚠️ [Meta] Season ${seasonIndex + 1} - Missing diziUrl`);
                 }
             });
 
@@ -1203,6 +1216,7 @@ async function processFetchResult(fetchResult) {
                 return { meta };
             }
 
+            // 🔥 TÜM SEZONLARIN INSTRUCTION'LARINI DÖNDÜR
             return {
                 instructions: episodeInstructions,
                 partialMeta: meta
@@ -1230,26 +1244,43 @@ async function processFetchResult(fetchResult) {
 
             safeLog(`✅ [Meta] Season ${seasonNumber}: ${videos.length} episodes`);
 
-            // 🆕 TAM META OBJESİ DÖNDÜR (sadece videos değil)
+            // 🔥 SADECE VIDEOS DÖNDÜR - Backend client bunları birleştirecek
             return {
-                meta: {
-                    id: item.id || `inatbox:${Buffer.from(JSON.stringify(item)).toString('base64')}`,
-                    type: 'series',
-                    name: item.diziName || item.chName || 'Unknown',
-                    poster: item.diziImg || item.chImg || null,
-                    description: item.diziDetay || '',
-                    releaseInfo: item.diziYear || '',
-                    videos: videos, // 🔥 Videos burada
-                    addonName: 'inatbox',
-                    addonManifestUrl
+                partialMeta: {
+                    videos: videos
                 }
             };
         }
 
         // ======== FİLM ========
         if (type === 'movie' && item.diziType === 'film') {
-            safeLog('🎬 [Meta] Movie type - meta ready');
-            // Film için response'ta stream bilgileri var, meta hazır
+            safeLog('🎬 [Meta] Movie - creating video entry from response');
+
+            // Film için backend'den gelen data array'i kontrol et
+            if (Array.isArray(data) && data.length > 0) {
+                // İlk item'dan video oluştur (Kotlin line 252-258)
+                const firstItem = data[0];
+                const videoId = `inatbox:${Buffer.from(JSON.stringify(firstItem)).toString('base64')}`;
+
+                meta.videos = [{
+                    id: videoId,
+                    title: item.diziName || 'Film',
+                    thumbnail: firstItem.chImg || item.diziImg || null,
+                    released: item.diziYear || ''
+                }];
+
+                safeLog(`✅ [Meta] Movie: 1 video entry created`);
+            } else {
+                // Data yoksa, item'ın kendisini video olarak kullan
+                meta.videos = [{
+                    id: `inatbox:${Buffer.from(JSON.stringify(item)).toString('base64')}`,
+                    title: item.diziName || 'Film',
+                    thumbnail: item.diziImg || null,
+                    released: item.diziYear || ''
+                }];
+                safeLog(`✅ [Meta] Movie: Using original item as video`);
+            }
+
             return { meta };
         }
 
@@ -1293,4 +1324,3 @@ module.exports = {
     handleStream,
     processFetchResult
 };
-

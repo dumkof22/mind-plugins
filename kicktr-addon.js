@@ -6,7 +6,6 @@ const manifest = {
     version: '1.0.0',
     name: 'Kick.com TR',
     description: 'Türk yayıncılar ve popüler Kick.com canlı yayınları - Takipçi sayıları ve doğrulanmış hesaplar',
-    logo: 'https://play-lh.googleusercontent.com/66czInHo_spTFWwLVYntxW8Fa_FHCDRPnd3y0HT14_xz6xb_lqSv005ARvdkJJE2TA=s256-rw',
     resources: ['catalog', 'meta', 'stream'],
     types: ['tv'],
     catalogs: [
@@ -418,5 +417,4 @@ module.exports = {
     handleStream,
     processFetchResult
 };
-
 

@@ -7,7 +7,7 @@ const manifest = {
     version: '2.0.0',
     name: 'DiziBox',
     description: 'Türkçe dizi izleme platformu - DiziBox için Stremio eklentisi (Instruction Mode)',
-    logo: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSgXIkkAHYalvetXiMflj76Hac4SWcN_qIsQ23Irvn6fxG2kvFkdVlExKjQoOLJfLVsyO8&usqp=CAU',
+    logo: 'https://www.google.com/s2/favicons?domain=www.dizibox.de&sz=%size%',
     resources: ['catalog', 'meta', 'stream'],
     types: ['series'],
     catalogs: [
@@ -1212,5 +1212,4 @@ module.exports = {
     handleStream,
     processFetchResult
 };
-
 
