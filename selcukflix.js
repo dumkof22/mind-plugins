@@ -10,6 +10,7 @@ const manifest = {
     version: '1.0.0',
     name: 'SelcukFlix',
     description: 'Türkçe dizi ve film izleme platformu - SelcukFlix için Stremio eklentisi (Instruction Mode)',
+    logo: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRSUvIFqAlaBRC0QXNibBOpw-RjKhU6liBQ5-xATVp3S4uyEi2QGXzHXdEW0WvcgWABUw&usqp=CAU',
     resources: ['catalog', 'meta', 'stream'],
     types: ['movie', 'series'],
     catalogs: [
