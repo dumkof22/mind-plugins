@@ -1,9 +1,23 @@
-// inat-new.js (düzeltilmiş)
+// inat-new.js (düzeltilmiş - v3.0.6)
+// Güncelleme: Domain değişiklikleri - Wireshark analizi ile tespit edildi
+// Eski ölü domainler: boxbc.icu, diziboox.sbs
+// Yeni çalışan domainler: dizibbox.cfd (ana), foxlab.cfd, bozspra.cfd (yedek)
 const crypto = require('crypto');
 
 // --- CONFIG ---
 const CONFIG = {
-    contentUrl: 'https://diziboox.sbs/CDN/001/dizibox',
+    // Ana domain - kataloglar için (Wireshark'tan tespit edildi)
+    contentUrl: 'https://dizibbox.cfd/CDN/001/dizibox',
+    // Yedek domainler (fallback için)
+    fallbackDomains: [
+        'https://foxlab.cfd/CDN/001/dizibox',
+        'https://bozspra.cfd/CDN/001/dizibox'
+    ],
+    // Stream CDN'leri
+    streamCdns: [
+        'https://str.bozspra.cfd',
+        'https://str.filmizleeeee.cfd'
+    ],
     aesKey: 'ywevqtjrurkwtqgz',
     userAgent: 'speedrestapi'
 };
@@ -11,7 +25,7 @@ const CONFIG = {
 // --- MANIFEST ---
 const manifest = {
     id: 'com.keyiflerolsun.inatbox',
-    version: '3.0.5',
+    version: '3.0.6',
     name: 'InatBox',
     description: 'Turkish TV channels, movies and series streaming (Instruction Mode) - Kotlin mekanizması ile uyumlu',
     logo: 'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEh3vCp6N1K4bECoYRQD-cisJF2_6V_Hk01ZhDmoPR2JuM8O5qr4MqrPO1munM9cRlleBBSK6odYhLtDBWv4E3vhPhynlmS5hVVtJZShHoGA5REQ8_3v8SIlccTEqzVQu2UJyNYQdJNrKIfWy66RQeT0D-CcmFCbHPz5023H6p2v5fv4NVloZ5Rqo_yGrIY/s320/iNat-Box-App.png',
@@ -19,7 +33,7 @@ const manifest = {
     types: ['movie', 'series', 'tv'],
     catalogs: [
         // TV lists - Her katalog için extra parametresi eklendi
-        { type: 'tv', id: 'spor', name: '📺 Spor Kanalları', extra: [] },
+        // NOT: spor ve tod katalogları şu an çalışmıyor (endpoint değişmiş)
         { type: 'tv', id: 'list1', name: '📺 Kanallar Liste 1', extra: [] },
         { type: 'tv', id: 'list2', name: '📺 Kanallar Liste 2', extra: [] },
         { type: 'tv', id: 'list3', name: '📺 Kanallar Liste 3', extra: [] },
@@ -31,7 +45,7 @@ const manifest = {
         { type: 'tv', id: 'cocuk', name: '🧸 Çocuk Kanalları', extra: [] },
         { type: 'tv', id: 'dini', name: '🕌 Dini Kanallar', extra: [] },
 
-        // Movie/Streaming services
+        // Movie/Streaming services - Tümü çalışıyor (dizibbox.cfd)
         { type: 'movie', id: 'exxen', name: '🎬 EXXEN', extra: [] },
         { type: 'movie', id: 'gain', name: '🎬 Gain', extra: [] },
         { type: 'movie', id: 'disney', name: '🎬 Disney+', extra: [] },
@@ -39,45 +53,55 @@ const manifest = {
         { type: 'movie', id: 'hbo', name: '🎬 HBO Max', extra: [] },
         { type: 'movie', id: 'tabii', name: '🎬 Tabii', extra: [] },
         { type: 'movie', id: 'mubi', name: '🎬 Mubi', extra: [] },
-        { type: 'movie', id: 'tod', name: '🎬 TOD', extra: [] },
 
-        // Series / films
+        // Series / films - Tümü çalışıyor (dizibbox.cfd)
         { type: 'series', id: 'yabanci-dizi', name: '📺 Yabancı Diziler', extra: [] },
         { type: 'series', id: 'yerli-dizi', name: '📺 Yerli Diziler', extra: [] },
         { type: 'movie', id: 'yerli-film', name: '🎬 Yerli Filmler', extra: [] },
-        { type: 'movie', id: '4k-film', name: '🎬 4K Film İzle', extra: [] },
-
-        // SEARCH katalogu (Stremio aramaları için)
-        { type: 'movie', id: 'inat_search', name: '🔍 Arama', extra: [{ name: 'search', isRequired: true }] }
+        { type: 'movie', id: '4k-film', name: '🎬 4K Film İzle', extra: [] }
     ],
     idPrefixes: ['inatbox']
 };
 
 // --- URL MAP ---
+// Güncellendi: 2024 - Wireshark ile tespit edilen yeni domainler
+// Eski ölü domainler: boxbc.icu, diziboox.sbs
+// Yeni çalışan domain: dizibbox.cfd (ana), foxlab.cfd, bozspra.cfd (yedek)
+const BASE_URL = 'https://dizibbox.cfd/CDN/001/dizibox';
+
 const catalogUrls = {
-    spor: 'https://boxbc.icu/CDN/001_STR/boxbc.icu/spor_v2.php',
-    list1: `https://diziboox.sbs/CDN/001/dizibox/tv/list1.php`,
-    list2: `https://diziboox.sbs/CDN/001/dizibox/tv/list2.php`,
-    list3: `https://diziboox.sbs/CDN/001/dizibox/tv/list3.php`,
-    sinema: `https://diziboox.sbs/CDN/001/dizibox/tv/sinema.php`,
-    belgesel: `https://diziboox.sbs/CDN/001/dizibox/tv/belgesel.php`,
-    ulusal: `https://diziboox.sbs/CDN/001/dizibox/tv/ulusal.php`,
-    haber: `https://diziboox.sbs/CDN/001/dizibox/tv/haber.php`,
-    eba: `https://diziboox.sbs/CDN/001/dizibox/tv/eba.php`,
-    cocuk: `https://diziboox.sbs/CDN/001/dizibox/tv/cocuk.php`,
-    dini: `https://diziboox.sbs/CDN/001/dizibox/tv/dini.php`,
-    exxen: `https://diziboox.sbs/CDN/001/dizibox/ex/index.php`,
-    gain: `https://diziboox.sbs/CDN/001/dizibox/ga/index.php`,
-    disney: `https://diziboox.sbs/CDN/001/dizibox/dsny/index.php`,
-    amazon: `https://diziboox.sbs/CDN/001/dizibox/amz/index.php`,
-    hbo: `https://diziboox.sbs/CDN/001/dizibox/hb/index.php`,
-    tabii: `https://diziboox.sbs/CDN/001/dizibox/tbi/index.php`,
-    mubi: `https://diziboox.sbs/CDN/001/dizibox/film/mubi.php`,
-    tod: `https://boxbc.icu/CDN/001_STR/boxbc.icu/ccc/index.php`,
-    'yabanci-dizi': `https://diziboox.sbs/CDN/001/dizibox/yabanci-dizi/index.php`,
-    'yerli-dizi': `https://diziboox.sbs/CDN/001/dizibox/yerli-dizi/index.php`,
-    'yerli-film': `https://diziboox.sbs/CDN/001/dizibox/film/yerli-filmler.php`,
-    '4k-film': `https://diziboox.sbs/CDN/001/dizibox/film/4k-film-exo.php`
+    // TV Kanalları - dizibbox.cfd üzerinde çalışıyor
+    list1: `${BASE_URL}/tv/list1.php`,
+    list2: `${BASE_URL}/tv/list2.php`,
+    list3: `${BASE_URL}/tv/list3.php`,
+    sinema: `${BASE_URL}/tv/sinema.php`,
+    belgesel: `${BASE_URL}/tv/belgesel.php`,
+    ulusal: `${BASE_URL}/tv/ulusal.php`,
+    haber: `${BASE_URL}/tv/haber.php`,
+    eba: `${BASE_URL}/tv/eba.php`,
+    cocuk: `${BASE_URL}/tv/cocuk.php`,
+    dini: `${BASE_URL}/tv/dini.php`,
+
+    // Streaming Platformları - dizibbox.cfd üzerinde çalışıyor
+    exxen: `${BASE_URL}/ex/index.php`,
+    gain: `${BASE_URL}/ga/index.php`,
+    disney: `${BASE_URL}/dsny/index.php`,
+    amazon: `${BASE_URL}/amz/index.php`,
+    hbo: `${BASE_URL}/hb/index.php`,
+    tabii: `${BASE_URL}/tbi/index.php`,
+    mubi: `${BASE_URL}/film/mubi.php`,
+
+    // Diziler - dizibbox.cfd üzerinde çalışıyor
+    'yabanci-dizi': `${BASE_URL}/yabanci-dizi/index.php`,
+    'yerli-dizi': `${BASE_URL}/yerli-dizi/index.php`,
+
+    // Filmler - dizibbox.cfd üzerinde çalışıyor
+    'yerli-film': `${BASE_URL}/film/yerli-filmler.php`,
+    '4k-film': `${BASE_URL}/film/4k-film-exo.php`
+
+    // NOT: Aşağıdaki kataloglar şu an 404 veriyor, endpoint değişmiş olabilir:
+    // spor: Eski path boxbc.icu/CDN/001_STR/boxbc.icu/spor_v2.php artık çalışmıyor
+    // tod: Eski path boxbc.icu/CDN/001_STR/boxbc.icu/ccc/index.php artık çalışmıyor
 };
 
 // --- HELPERS ---
