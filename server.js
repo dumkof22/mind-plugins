@@ -49,6 +49,8 @@ const addonModules = {
     'dizibox': require('./dizibox-addon.js'),
     'hdfilmcehennemi': require('./hdfilmcehennemi-addon.js'),
     'selcukflix': require('./selcukflix.js'),
+    'dizigom': require('./dizigom.js'),
+    'dizimag': require('./dizimag.js'),
 
     // Kotlin'den çevrilen yeni eklentiler
     '4kfilmizlesene': require('./4kfilmizlesene-addon.js'),
@@ -81,8 +83,8 @@ console.log(`📦 Loaded ${Object.keys(addonModules).length} addon(s):\n`);
 
 // Kategorilere göre listeleme
 const addonCategories = {
-    '🎬 Film & Dizi': ['fullhdfilmizlesene', 'hdfilmcehennemi', 'dizibox', 'dizipal', 'selcukflix', '4kfilmizlesene', 'sinefy', 'webteizle'],
-    '📺 Dizi': ['dizist'],
+    '🎬 Film & Dizi': ['fullhdfilmizlesene', 'hdfilmcehennemi', 'dizibox', 'dizipal', 'selcukflix', 'dizigom', 'dizimag', '4kfilmizlesene', 'sinefy', 'webteizle'],
+    '📺 Dizi': ['dizist', 'dizigom', 'dizimag'],
     '🎌 Anime': ['animecix'],
     '🎨 Çizgi Film': ['cizgimax', 'cizgivedizi'],
     '📚 Belgesel': ['belgeselx'],
@@ -126,8 +128,8 @@ app.get('/api/addons', (req, res) => {
 // List addons by category (yeni eklentileri kategorize etmek için)
 app.get('/api/addons/categories', (req, res) => {
     const categories = {
-        '🎬 Film & Dizi': ['fullhdfilmizlesene', 'hdfilmcehennemi', 'dizibox', 'dizipal', 'selcukflix', '4kfilmizlesene', 'sinefy', 'webteizle'],
-        '📺 Dizi': ['dizipal', 'dizist'],
+        '🎬 Film & Dizi': ['fullhdfilmizlesene', 'hdfilmcehennemi', 'dizibox', 'dizipal', 'selcukflix', 'dizigom', 'dizimag', '4kfilmizlesene', 'sinefy', 'webteizle'],
+        '📺 Dizi': ['dizipal', 'dizist', 'dizigom', 'dizimag'],
         '🎌 Anime': ['animecix'],
         '🎨 Çizgi Film': ['cizgimax', 'cizgivedizi'],
         '📚 Belgesel': ['belgeselx'],
