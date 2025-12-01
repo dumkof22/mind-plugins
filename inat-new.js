@@ -1,7 +1,10 @@
-// inat-new.js (düzeltilmiş - v3.0.6)
+// inat-new.js (düzeltilmiş - v3.0.7)
 // Güncelleme: Domain değişiklikleri - Wireshark analizi ile tespit edildi
-// Eski ölü domainler: boxbc.icu, diziboox.sbs
-// Yeni çalışan domainler: dizibbox.cfd (ana), foxlab.cfd, bozspra.cfd (yedek)
+// Eski ölü domainler: boxbc.icu, diziboox.sbs, dizibbox.cfd (DNS hatası)
+// Yeni çalışan domainler: 
+//   - boxsports.cfd (spor kanalları için)
+//   - dizibcbox.cfd (TOD ve spor için)
+//   - foxlab.cfd, bozspra.cfd (yedek)
 const crypto = require('crypto');
 
 // --- CONFIG ---
@@ -18,6 +21,9 @@ const CONFIG = {
         'https://str.bozspra.cfd',
         'https://str.filmizleeeee.cfd'
     ],
+    // Spor ve TOD domainleri (Wireshark'tan tespit edildi)
+    sportsDomain: 'https://boxsports.cfd',
+    todDomain: 'https://dizibcbox.cfd',
     aesKey: 'ywevqtjrurkwtqgz',
     userAgent: 'speedrestapi'
 };
@@ -25,7 +31,7 @@ const CONFIG = {
 // --- MANIFEST ---
 const manifest = {
     id: 'com.keyiflerolsun.inatbox',
-    version: '3.0.6',
+    version: '3.0.7',
     name: 'InatBox',
     description: 'Turkish TV channels, movies and series streaming (Instruction Mode) - Kotlin mekanizması ile uyumlu',
     logo: 'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEh3vCp6N1K4bECoYRQD-cisJF2_6V_Hk01ZhDmoPR2JuM8O5qr4MqrPO1munM9cRlleBBSK6odYhLtDBWv4E3vhPhynlmS5hVVtJZShHoGA5REQ8_3v8SIlccTEqzVQu2UJyNYQdJNrKIfWy66RQeT0D-CcmFCbHPz5023H6p2v5fv4NVloZ5Rqo_yGrIY/s320/iNat-Box-App.png',
@@ -33,7 +39,7 @@ const manifest = {
     types: ['movie', 'series', 'tv'],
     catalogs: [
         // TV lists - Her katalog için extra parametresi eklendi
-        // NOT: spor ve tod katalogları şu an çalışmıyor (endpoint değişmiş)
+        { type: 'tv', id: 'spor', name: '⚽ Spor Kanalları', extra: [] },
         { type: 'tv', id: 'list1', name: '📺 Kanallar Liste 1', extra: [] },
         { type: 'tv', id: 'list2', name: '📺 Kanallar Liste 2', extra: [] },
         { type: 'tv', id: 'list3', name: '📺 Kanallar Liste 3', extra: [] },
@@ -53,6 +59,7 @@ const manifest = {
         { type: 'movie', id: 'hbo', name: '🎬 HBO Max', extra: [] },
         { type: 'movie', id: 'tabii', name: '🎬 Tabii', extra: [] },
         { type: 'movie', id: 'mubi', name: '🎬 Mubi', extra: [] },
+        { type: 'movie', id: 'tod', name: '🎬 TOD', extra: [] },
 
         // Series / films - Tümü çalışıyor (dizibbox.cfd)
         { type: 'series', id: 'yabanci-dizi', name: '📺 Yabancı Diziler', extra: [] },
@@ -66,8 +73,9 @@ const manifest = {
 // --- URL MAP ---
 // Güncellendi: 2024 - Wireshark ile tespit edilen yeni domainler
 // Eski ölü domainler: boxbc.icu, diziboox.sbs
-// Yeni çalışan domain: dizibbox.cfd (ana), foxlab.cfd, bozspra.cfd (yedek)
-const BASE_URL = 'https://dizibbox.cfd/CDN/001/dizibox';
+// Yeni çalışan domainler: boxsports.cfd (spor), dizibcbox.cfd (TOD), foxlab.cfd, bozspra.cfd (yedek)
+// NOT: dizibbox.cfd bazen DNS hatası verebiliyor, alternatif olarak foxlab.cfd veya bozspra.cfd kullanılabilir
+const BASE_URL = 'https://dizibcbox.cfd/CDN/001/dizibox';
 
 const catalogUrls = {
     // TV Kanalları - dizibbox.cfd üzerinde çalışıyor
@@ -97,11 +105,13 @@ const catalogUrls = {
 
     // Filmler - dizibbox.cfd üzerinde çalışıyor
     'yerli-film': `${BASE_URL}/film/yerli-filmler.php`,
-    '4k-film': `${BASE_URL}/film/4k-film-exo.php`
+    '4k-film': `${BASE_URL}/film/4k-film-exo.php`,
 
-    // NOT: Aşağıdaki kataloglar şu an 404 veriyor, endpoint değişmiş olabilir:
-    // spor: Eski path boxbc.icu/CDN/001_STR/boxbc.icu/spor_v2.php artık çalışmıyor
-    // tod: Eski path boxbc.icu/CDN/001_STR/boxbc.icu/ccc/index.php artık çalışmıyor
+    // Spor ve TOD - Yeni domainler (Wireshark'tan tespit edildi)
+    // Eski path yapısı: /CDN/001_STR/boxbc.icu/spor_v2.php
+    // Yeni domainler: boxsports.cfd, dizibcbox.cfd
+    spor: 'https://boxsports.cfd/CDN/001_STR/boxsports.cfd/spor_v2.php',
+    tod: 'https://dizibcbox.cfd/CDN/001_STR/dizibcbox.cfd/ccc/index.php'
 };
 
 // --- HELPERS ---
