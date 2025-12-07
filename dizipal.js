@@ -141,7 +141,7 @@ const manifest = {
     idPrefixes: ['dizipal']
 };
 
-const BASE_URL = 'https://dizipal1220.com';
+const BASE_URL = 'https://dizipal1221.com';
 
 // ============ BOT DETECTION PREVENTION ============
 // Delay helper function
