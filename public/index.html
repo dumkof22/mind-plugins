@@ -200,6 +200,105 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
+        .bulk-operations {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: fadeIn 1s ease;
+        }
+
+        .bulk-operations h2 {
+            margin-bottom: 15px;
+            color: #ffd700;
+        }
+
+        .bulk-buttons {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 20px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+            animation: fadeInUp 0.3s ease;
+        }
+
+        .modal-content h2 {
+            color: #ffd700;
+            margin-bottom: 20px;
+        }
+
+        .modal-content textarea {
+            width: 100%;
+            min-height: 300px;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.3);
+            color: white;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            resize: vertical;
+            margin-bottom: 20px;
+        }
+
+        .modal-content textarea::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-success {
+            background: #4caf50;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #45a049;
+        }
+
+        .btn-cancel {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .btn-cancel:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
         .instructions {
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
@@ -331,8 +430,34 @@
             </div>
         </div>
 
+        <div class="bulk-operations">
+            <h2>📦 Toplu İşlemler</h2>
+            <div class="bulk-buttons">
+                <button class="btn btn-primary" id="copyAllLinksBtn">
+                    📋 Tüm Linkleri Kopyala
+                </button>
+                <button class="btn btn-secondary" id="bulkAddBtn">
+                    ⚡ Toplu Ekle
+                </button>
+            </div>
+        </div>
+
         <div class="addons-grid" id="addonsGrid">
             <!-- Addons will be loaded dynamically -->
+        </div>
+
+        <!-- Bulk Add Modal -->
+        <div class="modal" id="bulkAddModal">
+            <div class="modal-content">
+                <h2>📦 Toplu Eklenti Ekleme</h2>
+                <p style="margin-bottom: 15px; opacity: 0.9;">Her satıra bir manifest URL'si yapıştırın:</p>
+                <textarea id="bulkUrlsTextarea"
+                    placeholder="https://example.com/manifest1.json&#13;&#10;https://example.com/manifest2.json&#13;&#10;https://example.com/manifest3.json"></textarea>
+                <div class="modal-buttons">
+                    <button class="btn btn-cancel" id="cancelBulkBtn">İptal</button>
+                    <button class="btn btn-success" id="processBulkBtn">Ekle</button>
+                </div>
+            </div>
         </div>
 
         <div class="instructions">
@@ -586,13 +711,100 @@
             });
         }
 
-        function showToast() {
+        function showToast(message = '📋 Link kopyalandı!') {
             const toast = document.getElementById('toast');
+            toast.textContent = message;
             toast.classList.add('show');
             setTimeout(() => {
                 toast.classList.remove('show');
             }, 3000);
         }
+
+        // Bulk operations functionality
+        const copyAllLinksBtn = document.getElementById('copyAllLinksBtn');
+        const bulkAddBtn = document.getElementById('bulkAddBtn');
+        const bulkAddModal = document.getElementById('bulkAddModal');
+        const cancelBulkBtn = document.getElementById('cancelBulkBtn');
+        const processBulkBtn = document.getElementById('processBulkBtn');
+        const bulkUrlsTextarea = document.getElementById('bulkUrlsTextarea');
+
+        // Copy all links button
+        copyAllLinksBtn.addEventListener('click', function () {
+            const allUrls = addonsData.map(addon => {
+                return `${baseUrl}/api/addon/${addon.addonId}/manifest.json`;
+            }).join('\n');
+
+            copyToClipboard(allUrls);
+            showToast('📋 Tüm linkler kopyalandı! (' + addonsData.length + ' adet)');
+        });
+
+        // Open bulk add modal
+        bulkAddBtn.addEventListener('click', function () {
+            bulkAddModal.classList.add('show');
+        });
+
+        // Close modal
+        cancelBulkBtn.addEventListener('click', function () {
+            bulkAddModal.classList.remove('show');
+            bulkUrlsTextarea.value = '';
+        });
+
+        // Close modal when clicking outside
+        bulkAddModal.addEventListener('click', function (e) {
+            if (e.target === bulkAddModal) {
+                bulkAddModal.classList.remove('show');
+                bulkUrlsTextarea.value = '';
+            }
+        });
+
+        // Process bulk URLs
+        processBulkBtn.addEventListener('click', function () {
+            const urls = bulkUrlsTextarea.value
+                .split('\n')
+                .map(url => url.trim())
+                .filter(url => url.length > 0);
+
+            if (urls.length === 0) {
+                showToast('⚠️ Lütfen en az bir URL girin!');
+                return;
+            }
+
+            // Validate URLs
+            const validUrls = urls.filter(url => {
+                try {
+                    new URL(url);
+                    return url.includes('manifest.json');
+                } catch {
+                    return false;
+                }
+            });
+
+            if (validUrls.length === 0) {
+                showToast('⚠️ Geçerli manifest URL\'si bulunamadı!');
+                return;
+            }
+
+            // Create Mind URLs for each valid URL
+            const MindUrls = validUrls.map(url => {
+                const urlObj = new URL(url);
+                const protocolType = urlObj.protocol === 'https:' ? 'https' : 'http';
+                return `mind://${protocolType}/${url.replace(/^https?:\/\//, '')}`;
+            });
+
+            // Open each Mind URL in a new tab with a small delay
+            let index = 0;
+            const interval = setInterval(() => {
+                if (index < MindUrls.length) {
+                    window.open(MindUrls[index], '_blank');
+                    index++;
+                } else {
+                    clearInterval(interval);
+                    showToast(`✅ ${validUrls.length} eklenti Mind'de açıldı!`);
+                    bulkAddModal.classList.remove('show');
+                    bulkUrlsTextarea.value = '';
+                }
+            }, 500); // 500ms delay between each URL
+        });
     </script>
 </body>
 
