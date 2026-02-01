@@ -51,7 +51,7 @@ const manifest = {
     idPrefixes: ['dizimag']
 };
 
-const BASE_URL = 'https://dizimag.eu';
+const BASE_URL = 'https://dizimag.nl';
 
 // Headers helper
 function getHeaders(referer = BASE_URL) {
@@ -525,5 +525,6 @@ module.exports = {
     handleStream,
     processFetchResult
 };
+
 
 
