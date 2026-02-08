@@ -56,7 +56,7 @@ const manifest = {
     idPrefixes: ['selcuk']
 };
 
-const BASE_URL = 'https://www.sporcafe-cad55a3442.xyz';
+const BASE_URL = 'https://sporcafe-3a466a1dab.xyz';
 const PLAYER_BASE_URL = 'https://main.uxsyplayerb03b3c895b.click/index.php?id=';
 
 // Kanal kategorilerine göre regex filtreleme
