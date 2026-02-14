@@ -63,7 +63,7 @@ const DYNAMIC_BASE_URLS = [
 ];
 
 // Varsayılan URL (dinamik URL bulunamazsa kullanılacak)
-let BASE_URL = 'https://tinyurl.com/selcuk383';
+let BASE_URL = 'https://www.selcuksportshdf223dc1c06.xyz';
 const PLAYER_BASE_URL = 'https://main.uxsyplayerb03b3c895b.click/index.php?id=';
 
 // Dinamik URL'i güncelle (Flutter tarafından çağrılacak)
